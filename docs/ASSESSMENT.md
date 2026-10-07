@@ -16,7 +16,7 @@ Every application module was read (about 30,000 lines across 22 Python files, 5 
 
 Evidence labels used below: **VERIFIED** (reproduced by running code), **TRACED** (code path read end to end), **INFERRED** (reasoned from code, not confirmed).
 
-Defect IDs (`KD-...`) match the strict-xfail tests in `ultimate/tests` where a test exists (15 of them have one). Running `pytest --runxfail --tb=line` from `ultimate/` reproduces every VERIFIED unit-level defect.
+Defect IDs (`KD-...`) match the strict-xfail tests in `ultimate/tests` where a test exists (17 have one: 16 pinned as strict xfail, plus KD-SEC-01 which is fixed and now guarded). Running `pytest --runxfail --tb=line` from `ultimate/` reproduces every VERIFIED unit-level defect.
 
 ---
 
@@ -31,7 +31,7 @@ Defect IDs (`KD-...`) match the strict-xfail tests in `ultimate/tests` where a t
 | # | Finding | Severity | Evidence |
 |---|---|---|---|
 | 1 | No authentication anywhere; `userId` from the request body is trusted | CRITICAL | TRACED |
-| 2 | Tenant filter injection: a crafted `userId` returns every tenant's documents | CRITICAL | VERIFIED via `/search` |
+| 2 | Tenant filter injection: a crafted `userId` returns every tenant's documents | CRITICAL | VERIFIED via `/search`; **fixed in `47cfedc`** |
 | 3 | Anonymous cross-tenant delete (`/delete-document` with only `file_id`) and an unauthenticated admin purge | CRITICAL | VERIFIED |
 | 4 | Redis published on `0.0.0.0:6379` without a password, and the API `pickle.loads` blobs from it: remote code execution for anyone who can reach the port | CRITICAL | TRACED |
 | 5 | Milvus collections are auto-**dropped** on a dimension mismatch or any schema-check exception; the dimension is read from two different env vars | CRITICAL (data loss) | TRACED |
@@ -40,6 +40,9 @@ Defect IDs (`KD-...`) match the strict-xfail tests in `ultimate/tests` where a t
 | 8 | Page provenance is lost: pages are joined in thread-completion order and every chunk has `page_number=0`; scanned pages inside mostly-digital PDFs are never OCR'd | HIGH | VERIFIED |
 | 9 | All extracted metadata (dates, persons, organizations, governing law) is computed and then thrown away before insert | HIGH | VERIFIED |
 | 10 | A single slow search freezes the whole API including `/health` (8.6 s measured), and `/health` reports Celery/Redis healthy without checking | HIGH | VERIFIED |
+| 11 | About 2,500 lines of query understanding and ranking are dead at runtime: `enhance_query` raises `ImportError` on every query (`LOCATION_PEERS` missing) and `MetadataIndex()` raises `NameError`; both are swallowed, so `/search` silently runs a much simpler path than the code suggests | HIGH (and a trap) | VERIFIED |
+
+**The snapshot looks mid-refactor.** Finding 11 (two names that were moved or deleted without updating their importers), the README describing a `src/` pipeline that is not in the zip, and several historically described search techniques that cannot be found (see K) all point the same way. Production may be running different code, or may have been running this degraded path unnoticed because every failure is caught and logged as a warning. **Please confirm with the previous team before Phase 5.**
 
 **Structural problem.** Search lives in two functions of 1,491 and 3,070 lines, with more than 400 corpus-specific rules (231 references to "NDA", 91 to "Austin", 88 to "Texas", named people and companies). That code is tuned to the previous customer's documents. On a Xerox corpus most of those rules either do nothing or misfire, and their behaviour is not covered by tests. This is the main reason changes in one place have broken search elsewhere.
 
@@ -47,7 +50,8 @@ Defect IDs (`KD-...`) match the strict-xfail tests in `ultimate/tests` where a t
 
 **Already done in this session.**
 1. Imported the code into `raviansalman/xerox-ocr` without any real keys (`ultimate/.env.example` is the template).
-2. Added a 2-tier regression suite (87 tests; unit tier runs in about 5 s with no services) and a CI workflow. It freezes the Milvus contract and the four regression queries, and pins 15 verified defects as 25 strict-xfail test cases.
+2. Added a 2-tier regression suite (90 tests; unit tier runs in about 5 s with no services) and a CI workflow. It freezes the Milvus contract and the four regression queries, and pins 16 verified defects as 24 strict-xfail test cases.
+3. Fixed KD-SEC-01 (tenant filter injection, commit `47cfedc`), the first Phase 1 item. No change for well-formed IDs; the three strict-xfail tests flipped to passing and now guard the fix.
 
 ---
 
@@ -189,23 +193,24 @@ flowchart LR
 * OCR of clean English scans, both image uploads and scan-only PDFs: 14/14 key terms on 8pt and 12pt text (VERIFIED).
 * Chunking with a `[FILE: id] [FILE: name] |` header on every chunk, embedding through the embedder service, Milvus insert with user/bucket/path/connection scoping (VERIFIED).
 * HNSW + COSINE vector search with Milvus-side `user_id` filtering for well-formed IDs (VERIFIED).
-* The four regression queries return the press release first in vector, semantic and both modes; DOCX table content and Arabic plain text are retrievable (VERIFIED, stand-in embedder).
+* The four regression queries return the press release first in vector, semantic and both modes; DOCX table content and Arabic plain text are retrievable (VERIFIED, stand-in embedder). They pass through the core path only (vector search, the semantic pipeline's vector + rerank, merge, phrase-first sort), because query enhancement and the supplements are not running (KD-SRCH-11).
 * Filename and file-id lexical matching with stable score tiers 0.98 / 0.95 / 0.91 (VERIFIED).
 * Delete by file and per-user purge (VERIFIED, though unauthenticated, see N).
 * Job registry, heartbeat-based stuck-job detection, Redis lock against duplicate processing (TRACED).
 
 ## E. What partially works
 
-* **Semantic search:** runs, but most of its metadata-first routing is disabled because `MetadataIndex()` always raises `NameError` (KD-SRCH-04). With no reranker model it scores every hit 1.0 (KD-SRCH-08).
-* **Hybrid (`both`) mode:** vector + semantic run concurrently and merge. Constraint pruning and the supplements only fire for specific query shapes, and several of them assume the old corpus.
-* **Exact search on content:** delivered by a "content scan" that only runs when the filename scan finds nothing and the query has 1 to 4 words matching narrow patterns, and that only sees the first 16,384 chunks of a tenant (KD-MLV-04).
+* **Semantic search:** runs, but without query understanding (`enhance_query` fails on every call, KD-SRCH-11) and without metadata-first routing (`MetadataIndex()` always raises `NameError`, KD-SRCH-04). With no reranker model it scores every hit 1.0 (KD-SRCH-08).
+* **Hybrid (`both`) mode:** vector + semantic run concurrently and merge. The validation block that holds the validators, supplements and constraint ranking calls `enhance_query` first, so it fails on every query and falls back to "filtered results without validation" (VERIFIED in the integration run logs).
+* **Exact search on content:** designed to come from a "content scan" (1 to 4 word queries, only when the filename scan finds nothing, first 16,384 chunks only, KD-MLV-04). In this snapshot that scan never runs (KD-SRCH-11); exact phrases are found only through vector similarity plus the phrase-first sort key.
 * **Image OCR:** works for English, but the cleaner rewrites real uppercase words (DIGITAL → DIGTAL, KD-OCR-01).
 * **Metadata extraction:** dates, persons and organizations are extracted at ingest and then discarded (KD-DATA-01).
 * **Deployment:** the processing/search split works for the previous customer but depends on public IPs and unauthenticated Redis/Milvus.
 
 ## F. What is broken
 
-* Tenant isolation against crafted IDs, ownerless delete, unauthenticated purge (KD-SEC-01/02/03).
+* Ownerless delete, unauthenticated purge (KD-SEC-02/03). Tenant isolation against crafted IDs (KD-SEC-01) was broken and is now fixed.
+* Query understanding (`enhance_query`), the `/search` validators, supplements and constraint ranking: all fail on every query because `LOCATION_PEERS` no longer exists (KD-SRCH-11).
 * PDF page order and page numbers (KD-OCR-02/03); OCR of scanned pages inside mixed PDFs (KD-OCR-05).
 * Local (in-process) embedding: `SentenceTransformer` is never imported (KD-EMB-01). The system only works when `EMBEDDER_URL` points at the embedder service.
 * `MetadataIndex` construction (`threading` not imported). This is "broken" in a way that currently protects tenants (KD-SRCH-04).
@@ -243,13 +248,13 @@ Arabic OCR, handwriting recognition, document classification, structured field e
 | Vector indexing | WORKING | VERIFIED | Non-idempotent upsert | Delete-then-insert per file |
 | HNSW | WORKING | VERIFIED | M=32, efConstruction=200, ef=max(64, 2k) | Keep |
 | Cosine similarity | WORKING | VERIFIED | | Keep |
-| Exact search | PARTIALLY WORKING | VERIFIED | Filename-only lexical scan; content scan narrow and capped | Real keyword index (Milvus 2.5 BM25 or Postgres FTS) |
-| Semantic search | PARTIALLY WORKING | VERIFIED (plumbing) | Metadata-first disabled; reranker fallback scores 1.0 | Fix behind tests |
+| Exact search | PARTIALLY WORKING | VERIFIED | Filename-only lexical scan; content scan not running (KD-SRCH-11) and capped | Real keyword index (Milvus 2.5 BM25 or Postgres FTS) |
+| Semantic search | PARTIALLY WORKING | VERIFIED (plumbing) | Query enhancement and metadata-first disabled by missing names; reranker fallback scores 1.0 | Fix behind tests and golden set |
 | Hybrid search | PARTIALLY WORKING | VERIFIED | Ad hoc merge (+0.15 boost, dedupe by stripped file id) | Reciprocal rank fusion, explicit weights |
 | Fuzzy / OCR search | NOT IMPLEMENTED (live path) | TRACED | Only fuzzy code is dead and runs on corrupted text | Trigram / edit-distance on OCR text |
 | Result ranking | PARTIALLY WORKING | VERIFIED | 400+ corpus-specific rules, one result per file | Domain profiles, chunk-level results |
 | Image indexing | PARTIALLY WORKING | TRACED | OCR text indexed; CLIP path off by default; caption path writes `user_id="default_user"` | Keep OCR path; fix tenant on caption path |
-| User isolation | BROKEN | VERIFIED | Injection, ownerless delete, latent metadata leak | P0 fixes |
+| User isolation | BROKEN | VERIFIED | Ownerless delete, no auth, latent metadata leak (injection fixed in `47cfedc`) | P0 fixes |
 | RAG retrieval | NOT IMPLEMENTED | TRACED | Retrieval only, no LLM, no citations | Phase 6 |
 | API endpoints | PARTIALLY WORKING | VERIFIED | Untyped bodies, 400→500, traceback leak | Pydantic models, error middleware |
 | Authentication | NOT IMPLEMENTED | TRACED | `JWT_SECRET_KEY` defined, never read | API keys or OIDC |
@@ -316,15 +321,15 @@ Detailed issues are in **Appendix A** in the requested format.
 ## K. Semantic search assessment (full query lifecycle)
 
 1. **Request:** `POST /search` with an untyped dict: `userId`, `query`, `limit` (default 1000), `searchMethod` (default `SEARCH_DEFAULT_METHOD=both`), optional `bucketId`/`path`/`connectionId`, `search_type`, `semantic_mode`.
-2. **Preprocessing:** `_normalize_temporal_phrasing`, then `enhance_query` (925 lines of rules) produces `query_meta`: `vector_query`, `normalized_query`, `intent_type`, `persons`, `locations`, `date`/`date_range`, `file_extensions`, `required_keywords`, `required_text_regex`, `needs_semantic`, `location_anchor_cities`. `vector` mode is silently upgraded to `both` when dates or entities are detected.
+2. **Preprocessing:** `_normalize_temporal_phrasing`, then `enhance_query` (925 lines of rules) is meant to produce `query_meta`. **In this snapshot it raises `ImportError` on every call (KD-SRCH-11) and the caller substitutes `{original_query, normalized_query}`, so none of the following is detected:** `vector_query`, `normalized_query`, `intent_type`, `persons`, `locations`, `date`/`date_range`, `file_extensions`, `required_keywords`, `required_text_regex`, `needs_semantic`, `location_anchor_cities`. `vector` mode is silently upgraded to `both` when dates or entities are detected.
 3. **Shared state write:** `vi._last_query_meta = query_meta` on the process-wide integration object (race between concurrent requests).
 4. **Retrieval (both mode):** vector and semantic run in a 2-thread pool. Semantic only runs when `needs_semantic` is true; budgets `VECTOR_MAX_SECONDS_BOTH=20`, `SEMANTIC_MAX_SECONDS_BOTH=8` (semantic gets 80%).
    * **Vector path** (`UltimateVectorIntegration.search_documents`): embed the query through `EMBEDDER_SEARCH_URL`; Milvus HNSW search with `ef = max(64, 2k)`, `k = min(limit*5, 500)` then hard-capped at **50 chunks**; `expr = user_id == "..."` plus scope filters; keep the best chunk per file; add up to +0.25 for query-term overlap; cap at 1.0; enrich with temporal fields from text.
    * **Semantic path** (`SemanticPipeline.search_documents`): date/location/expired router (Milvus year scan still active; `metadata_index` paths inactive), Milvus vector search, `aggregate_by_document`, cross-encoder rerank on up to `max(2*top_k, 30)` documents, strictness profile `precision` thresholds, temporal/person/location validators.
 5. **Merge:** dedupe by a normalized file id that strips `_`, `-`, spaces and extensions (two distinct files can collapse, KD-SRCH-10); semantic and metadata hits get +0.15 (capped at 0.99).
-6. **Constraint prune (both mode):** required keywords, regex and city anchors; Texas metro peer rules.
+6. **Constraint prune (both mode):** required keywords, regex and city anchors; Texas metro peer rules. Currently a no-op (no `query_meta`).
 7. **Score floor:** `SEARCH_MIN_SCORE` (0.0 in code, 0.05 in the env template); images need 0.5; "lexical" hits bypass the floor. Consequence: an unknown query still returns every document of the tenant (VERIFIED, KD-SRCH-06).
-8. **Validation and supplements (non-vector modes):** per-hit temporal/person/NDA validators, then NDA filename supplement, filename lexical supplement (Milvus full scan without text), content scan (full scan with text, cached 3 min per process), entity+extension supplement, hard extension filter, `apply_constraint_boost` (655 lines), sort by `(exact phrase in chunk, filename token hits, score)`, dedupe by decoded filename, person and brand trims.
+8. **Validation and supplements (non-vector modes, currently skipped: the block calls `enhance_query` first and falls back to a plain sort):** per-hit temporal/person/NDA validators, then NDA filename supplement, filename lexical supplement (Milvus full scan without text), content scan (full scan with text, cached 3 min per process), entity+extension supplement, hard extension filter, `apply_constraint_boost` (655 lines), sort by `(exact phrase in chunk, filename token hits, score)`, dedupe by decoded filename, person and brand trims.
 9. **Fallbacks:** if nothing survives: vector with threshold 0, then year scan, then filename scan.
 10. **Response:** one chunk per document (`file_id`, `text`, `similarity_score`, `confidence`, `search_method`, `metadata`) plus internal `query_meta` (debug data leaked to clients).
 
@@ -364,7 +369,7 @@ There is no RAG. No LLM client, prompt, answer generation or citation logic exis
 |---|---|---|
 | Authentication | None on any route. README's `api_key` parameter does not exist in code | CRITICAL |
 | Authorization | Tenant is whatever `userId` the caller sends | CRITICAL |
-| Injection | `user_id` interpolated unescaped into Milvus expressions; crafted ID returns all tenants (VERIFIED) | CRITICAL |
+| Injection | `user_id` interpolated unescaped into Milvus expressions; crafted ID returned all tenants (VERIFIED). **Fixed in `47cfedc`** | CRITICAL (fixed) |
 | Deletion | `/delete-document` works without `user_id` and deletes across tenants; also retries without bucket/path/connection filters if the first attempt matched nothing (VERIFIED) | CRITICAL |
 | Admin | `/admin/purge-user-vectors`, `/admin/vector-storage-by-user` open unless `VECTOR_STATS_ADMIN_KEY` is set (not set in any env file); `/admin/jobs/{user_id}` never protected | CRITICAL |
 | Redis | Published on `0.0.0.0:6379` without password in both monolith and processing compose; search server reads `pickle` blobs from it (`MetadataIndex._load_state_from_redis`) = RCE; also full document text of every tenant stored there for 30 days | CRITICAL |
@@ -443,7 +448,7 @@ Order of seams (lowest risk first):
 
 | ID | Item | Phase | Size | Risk to search |
 |---|---|---|---|---|
-| P0-1 | Escape tenant and scope values in every Milvus expression (KD-SEC-01) | 1 | S | None for valid IDs |
+| P0-1 | ~~Escape tenant and scope values in every Milvus expression (KD-SEC-01)~~ **Done (`47cfedc`)** | 1 | S | None for valid IDs |
 | P0-2 | Bind Redis and Milvus to the internal Docker network; Redis password; replace pickle with JSON (KD-SEC-05) | 1 | S | None |
 | P0-3 | Remove collection auto-drop; single source for model, dim and collection names (KD-MLV-01/02) | 1 | S | None |
 | P0-4 | Require `user_id` on delete and never retry delete without scope; admin key mandatory (KD-SEC-02/03) | 1 | S | API change for clients that omit `user_id`; confirm with backend owner |
@@ -469,6 +474,7 @@ Order of seams (lowest risk first):
 | P2-7 | RAG endpoint with citations and authorization-before-retrieval | 6 | L | None |
 | P3-1 | Fix or delete `_normalize_text` and the dead fuzzy layer (KD-OCR-07) | 3 | S | None |
 | P3-2 | Fix `threading` import **together with** per-tenant metadata indexes (KD-SRCH-04) | 5 | M | Re-enables metadata-first; needs tests |
+| P3-5 | Decide what to do with the dead query-understanding stack: restore `LOCATION_PEERS` behind the legacy domain profile only, or retire it (KD-SRCH-11) | 5 | M | Restoring it switches on ~2,500 lines of corpus-specific behaviour |
 | P3-3 | Remove unused deps; slim image; non-root user | 8 | S | None |
 | P3-4 | Rewrite README for xerox-ocr | 9 | S | None |
 
@@ -562,8 +568,8 @@ class DocumentExtractor(Protocol):
 
 | Level | Scope | Status |
 |---|---|---|
-| Unit | Milvus contract, chunking, lexical tiers, normalization, OCR cleaning, routing, request validation | Added (46 passing + 18 strict-xfail cases) |
-| Integration | Real Milvus + Redis + stand-in embedder; ingest PDF/DOCX/TXT/Arabic; regression queries in all modes; isolation; delete/purge; re-ingest | Added (16 passing + 7 strict-xfail cases) |
+| Unit | Milvus contract, chunking, lexical tiers, normalization, OCR cleaning, routing, request validation, query understanding | Added (48 passing + 18 strict-xfail cases) |
+| Integration | Real Milvus + Redis + stand-in embedder; ingest PDF/DOCX/TXT/Arabic; regression queries in all modes; isolation; delete/purge; re-ingest | Added (18 passing + 6 strict-xfail cases) |
 | Golden semantic set | Same queries against the real MPNet stack in Docker, with expected top-k per query; run before any ranking change | Phase 2: needs the Docker build with model access |
 | OCR quality | Corpus of real scans (Xerox samples, Arabic invoices, degraded copies); character error rate and key-field recall per engine/config | Phase 4 |
 | End-to-end | `docker compose` demo profile: upload via API, poll task, search, assert page citation | Phase 8 |
@@ -599,7 +605,7 @@ Fallbacks: a pre-recorded run of the same script, and the demo corpus already in
 | Changing chunking or extraction changes ranking for existing tenants | High | Re-index into a new collection; golden set comparison before cutover |
 | Multilingual model needs a re-embed of all data | High | New collection + dual read; keep MPNet collection until verified |
 | Real semantic quality not yet measured (model download blocked here) | Medium | Golden set on the Docker stack first thing in Phase 2 |
-| Snapshot may not be the full history (missing `src/` pipeline and some search techniques) | Medium | Confirm with the previous team; diff against any other branch |
+| Snapshot may not be the full history or the deployed version (missing `src/` pipeline, missing `LOCATION_PEERS` and `threading` imports, some search techniques absent) | High | Confirm with the previous team; diff against the production containers and any other branch before Phase 5 |
 | Existing StorageChain clients depend on lax API behaviour (optional `user_id` on delete, open admin) | Medium | Version the API; announce changes |
 | Exposed keys from the original env files | High | Rotate now |
 | Arabic OCR quality on real scans with Tesseract may be insufficient | Medium | Benchmark early; evaluate alternative engines behind `OCREngine` |
@@ -618,11 +624,11 @@ Fallbacks: a pre-recorded run of the same script, and the demo corpus already in
 | Document intelligence | 2/10 | No classification, no field extraction, extracted entities discarded |
 | Metadata extraction | 2/10 | Extraction exists but is never persisted |
 | Vector search | 6/10 | Solid HNSW/COSINE setup with tenant filtering; injection, 50-chunk cap, auto-drop |
-| Semantic search | 4/10 | Works for the regression queries; overfitted rules, disabled metadata routing, reranker fallback 1.0 |
+| Semantic search | 4/10 | Works for the regression queries; query understanding and metadata routing dead at runtime; overfitted rules; reranker fallback 1.0 |
 | Hybrid search | 4/10 | Concurrent merge works; ad hoc weighting, filename-only lexical, capped content scan |
 | RAG | 1/10 | Retrieval only, no citations, unsafe tenant boundary |
-| Security | 1/10 | No auth, injectable tenant filter, anonymous delete, public Redis with pickle |
-| Testing | 1/10 → 5/10 | None before; now 87 tests incl. integration and pinned defects |
+| Security | 1/10 | No auth, anonymous delete, open admin, public Redis with pickle (tenant filter injection now fixed) |
+| Testing | 1/10 → 5/10 | None before; now 90 tests incl. integration and pinned defects |
 | Observability | 2/10 | Logs only; fake health; Prometheus counters defined but not exposed |
 | Docker | 4/10 | Builds a working image online; workers off, public ports, models fetched at build |
 | Deployment | 3/10 | Works for one AWS setup via public IPs; CI deploy broken |
@@ -636,13 +642,14 @@ Fallbacks: a pre-recorded run of the same script, and the demo corpus already in
 
 ### Phase 0: Understand and baseline (done)
 * **Files:** none changed in the app. Added `ultimate/tests/**`, `pytest.ini`, `requirements-test.txt`, `.github/workflows/tests.yml`, `.gitignore`.
-* **Acceptance:** unit tier green in under 10 s; integration tier green against Milvus 2.3.1; 15 defects pinned as 25 strict-xfail cases.
+* **Acceptance:** unit tier green in under 10 s; integration tier green against Milvus 2.3.1; 16 defects pinned as 24 strict-xfail cases.
 
 ### Phase 1: Stabilize (security and data safety, no ranking changes)
 * **Files:** `vector_db_milvus_server.py` (escape all expressions, remove auto-drop, load before query), `ultimate_ui.py` (delete requires `user_id`, admin key mandatory, `/process` errors, real health, `def` handlers), `semantic_components.py` (JSON instead of pickle), compose files (no published Redis/Milvus ports, Redis `requirepass`), `.env.example`.
 * **Dependencies:** agreement from the StorageChain backend owner for the delete/admin contract change; key rotation.
 * **Regression risk:** low; only invalid or malicious inputs change behaviour.
-* **Tests:** flip KD-SEC-01/02/03, KD-API-01, KD-OPS-01/02, KD-MLV-03; add tests for no-auto-drop.
+* **Tests:** flip KD-SEC-02/03, KD-API-01, KD-OPS-01/02, KD-MLV-03 (KD-SEC-01 already flipped in `47cfedc`); add tests for no-auto-drop.
+* **Not in this phase:** KD-SRCH-04 and KD-SRCH-11. They look like one-line fixes but change search behaviour broadly; they belong to Phase 5 with the golden set.
 * **Acceptance:** all regression queries unchanged; crafted IDs return nothing; health reflects real dependency state; no published data-store ports.
 
 ### Phase 2: Tests and regression protection
@@ -713,14 +720,15 @@ Fallbacks: a pre-recorded run of the same script, and the demo corpus already in
 
 Format per issue: Issue, Location, Severity, Why it matters, Current behavior, Recommended change, Regression risk, How to test.
 
-### KD-SEC-01: Tenant filter injection
+### KD-SEC-01: Tenant filter injection (FIXED in `47cfedc`)
 * **Location:** `src/vector_db_milvus_server.py:655, 726` (`search_similar`), `:861, 868` (`query_all_chunks`)
 * **Severity:** CRITICAL
 * **Why it matters:** tenant isolation is the only access control in the system.
 * **Current behavior:** `f'user_id == "{user_id}"'` without escaping. `userId = 'alice" or user_id != "alice'` returns every tenant's documents through `/search` (VERIFIED).
 * **Recommended change:** one expression builder that escapes `\` and `"` (as the delete paths already do) and validates IDs against `^[A-Za-z0-9_.:-]{1,128}$`.
 * **Regression risk:** none for well-formed IDs.
-* **How to test:** `test_user_id_is_escaped_*`, `test_crafted_user_id_cannot_read_other_tenants`.
+* **How to test:** `test_user_id_is_escaped_*`, `test_crafted_user_id_cannot_read_other_tenants`, `test_user_id_with_quote_still_finds_own_documents` (all passing since the fix).
+* **Status:** fixed with a single escaping helper used at all four sites; ID format validation is still recommended as part of KD-SEC-04.
 
 ### KD-SEC-02: Ownerless, cross-tenant delete
 * **Location:** `ultimate_ui.py:4422-4558`; `src/ultimate_vector_integration.py:1338-1449`
@@ -1025,6 +1033,15 @@ Format per issue: Issue, Location, Severity, Why it matters, Current behavior, R
 * **Current behavior:** removes `_`, `-`, spaces and extensions before comparing file ids, so `a-b.pdf` and `ab.docx` collapse (TRACED).
 * **Recommended change:** dedupe on exact `(tenant, file_id)`.
 
+### KD-SRCH-11: Query understanding and ranking dead at runtime
+* **Location:** `src/semantic/query_enhancement.py:1097` and `src/semantic/constraint_ranking.py:338` import `LOCATION_PEERS` from `src/semantic/semantic_utils.py`, which does not define it; callers at `ultimate_ui.py:2957, 2992, 3481, 3497` and `semantic_pipeline.py:1200` catch the error
+* **Severity:** HIGH (functional), and a trap like KD-SRCH-04
+* **Why it matters:** the system's documented intelligence (date, person, location and file-type intent, NDA rules, supplements, constraint boosts, filename dedupe) is not running, and nobody is told: each failure is caught and logged as a warning.
+* **Current behavior:** `enhance_query` raises `ImportError` for every query (VERIFIED). `/search` substitutes a minimal `query_meta`; its validation block calls `enhance_query` first, so every query falls back to "filtered results without validation" (VERIFIED in logs). Vector mode's constraint boost is skipped the same way.
+* **Recommended change:** do not simply restore the name. Decide per domain profile: the legacy profile restores `LOCATION_PEERS` and re-enables the stack under the golden set; the generic (Xerox) profile keeps a small, tested query analyzer instead.
+* **Regression risk:** very high either way; restoring it changes ranking for most queries.
+* **How to test:** `test_enhance_query_runs` (strict xfail); golden set comparison before and after.
+
 ---
 
 ## Appendix B: Verification log
@@ -1033,7 +1050,9 @@ Format per issue: Issue, Location, Severity, Why it matters, Current behavior, R
 |---|---|
 | Local embedder without `EMBEDDER_URL` | `NameError: name 'SentenceTransformer' is not defined` |
 | Crafted `user_id` in `search_similar` / `query_all_chunks` (real Milvus) | Returns both tenants' files |
-| Same through `/search` | Alice receives `bob_release` |
+| Same through `/search` | Alice receives `bob_release` (before `47cfedc`); after the fix, nothing, and a legitimately quoted id still finds its own document |
+| `enhance_query(...)` for any query | `ImportError: cannot import name 'LOCATION_PEERS'` |
+| `/search` both mode, integration run | Logs "Constraint validation failed ... using filtered results without validation" on every query |
 | Shared metadata index, as shipped | Disabled (`NameError`), no leak |
 | Shared metadata index, with `threading` patched in | Alice receives Bob's invoice text |
 | Ingest PDF/DOCX/TXT/HTML/Arabic TXT through the Celery task | All `SUCCESS` |
