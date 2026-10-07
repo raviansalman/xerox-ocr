@@ -63,9 +63,11 @@ To see why each known defect fails right now: `pytest --runxfail --tb=line`.
 
 ## Golden search baseline
 
-`tests/golden/cases.py` defines a 73-document, 4-tenant corpus and 45 graded cases (exact phrase, keyword,
+`tests/golden/cases.py` defines an 86-document, 6-tenant corpus and 61 graded cases (exact phrase, keyword,
 joined form, word boundary, person/entity, semantic paraphrase, OCR-noisy, filename, Arabic, no-result, tenant,
-scope and injection). `integration/test_golden_search.py` runs them in all three search modes through `/search`:
+scope and injection), including a synthetic Xerox-style tenant (`xdemo`) with invoice ids, contract numbers,
+article references, Arabic and OCR errors. It is a placeholder until real Xerox documents are available.
+`scripts/forensics/scale_probe.py` measures exact recall and latency for large tenants. `integration/test_golden_search.py` runs them in all three search modes through `/search`:
 
 * every case, every mode: no document from another tenant (hard failure);
 * the pass/fail map must equal `tests/golden/baseline_<GOLDEN_EMBEDDER>.json`. A case that starts passing

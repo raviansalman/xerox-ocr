@@ -1,5 +1,8 @@
 # Search forensics: the factual baseline before any search change
 
+> Follow-up: the target design is in `docs/SEARCH_ARCHITECTURE.md` and `docs/SEARCH_QUERY_EXAMPLES.md`. The golden
+> set has since grown to 86 documents / 6 tenants / 61 cases; the 45 original cases are unchanged.
+
 Milestone scope: establish what search actually does today, with evidence. **No search code was changed.**
 Nothing was restored. The only code added is test and tooling code:
 

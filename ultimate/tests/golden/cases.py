@@ -9,6 +9,8 @@ Tenants:
   globex    a second tenant whose documents deliberately repeat acme's key terms
   haystack  60 near-duplicate distractors plus one exact-phrase "needle" (tests the vector cap)
   carol     no documents
+  xdemo     synthetic Xerox-style documents (invoice ids, contract numbers, articles, Arabic, OCR errors)
+  xother    one document that repeats xdemo's identifiers (count/aggregation isolation later)
 """
 import io
 from dataclasses import dataclass, field
@@ -108,6 +110,59 @@ CORPUS: List[Doc] = [
     Doc("haystack", "needle", "Fleet_Audit_Appendix.txt", TXT, _txt(
         "Fleet audit appendix. Printer counts by site, toner spend per department and uptime targets. "
         "Reference code: blue heron protocol 7781. Next audit in the second quarter.\n")),
+    # Synthetic Xerox-style corpus (placeholder until real Xerox documents and queries are provided).
+    Doc("xdemo", "x_invoice", "Tax_Invoice_INV-2026-00481.pdf", PDF, _pdf([[
+        "TAX INVOICE",
+        "Invoice #INV-2026-00481    Date: 14 January 2026",
+        "Bill to: Saudi Aramco, Dhahran, Kingdom of Saudi Arabia",
+        "Managed print services, quarter 1. Amount due: SAR 418,750.00 including VAT 15%.",
+    ]])),
+    Doc("xdemo", "x_contract", "Service_Contract_17-2024.pdf", PDF, _pdf([[
+        "SERVICE CONTRACT    Contract No. 17/2024",
+        "Between Riyadh Logistics Co. and Gulf Office Systems.",
+        "Article 12.4 Termination for convenience: either party may terminate this contract",
+        "with sixty (60) days written notice. Governing law: Kingdom of Saudi Arabia.",
+        "This contract expires on 31 December 2027.",
+    ]])),
+    Doc("xdemo", "x_nda_ca", "Mutual_NDA_Acme.pdf", PDF, _pdf([[
+        "MUTUAL NON-DISCLOSURE AGREEMENT",
+        "This agreement is governed by the laws of the State of California.",
+        "Signed: John Smith, Chief Executive Officer, Acme Corp. Date: 3 March 2025.",
+    ]])),
+    Doc("xdemo", "x_nda_tx", "Mutual_NDA_Lone_Star.pdf", PDF, _pdf([[
+        "MUTUAL NON-DISCLOSURE AGREEMENT",
+        "This agreement is governed by the laws of the State of Texas.",
+        "Signed: Maria Lopez, General Counsel, Lone Star Imaging. Date: 9 July 2024.",
+    ]])),
+    Doc("xdemo", "x_employment_ca", "Employment_Agreement_Field_Engineer.pdf", PDF, _pdf([[
+        "EMPLOYMENT AGREEMENT",
+        "Employment is at will under the California Labor Code.",
+        "Either the employee or the company may end the employment relationship at any time.",
+    ]])),
+    Doc("xdemo", "x_ocr_califomia", "scan_agreement_0412.txt", TXT, _txt(
+        "SUPPLY AGREEMENT. This agreement shall be governed by the laws of the State of Califomia. "
+        "Paym ent terms: net 45 days.\n")),
+    Doc("xdemo", "x_payroll", "Payroll_Summary_2024.txt", TXT, _txt(
+        "PAYROLL SUMMARY 2024. Employees paid: 42. Total gross pay: SAR 3,150,000. Paid monthly by bank transfer.\n")),
+    Doc("xdemo", "x_po", "Purchase_Order_PO-2025-0193.txt", TXT, _txt(
+        "PURCHASE ORDER PO-2025-0193. Quantity 20 VersaLink C7130 colour printers for the Jeddah office.\n")),
+    Doc("xdemo", "x_lease", "Equipment_Lease_Northwind.txt", TXT, _txt(
+        "EQUIPMENT LEASE. Monthly payment of USD 12,000 for 36 months, total contract value USD 432,000.\n")),
+    Doc("xdemo", "x_arabic_contract", "عقد_صيانة.txt", TXT, _txt(
+        "عقد صيانة رقم 17/2024. المادة 12.4: يجوز لأي من الطرفين إنهاء العقد بإشعار كتابي مدته ستون يوما.\n")),
+    Doc("xdemo", "x_scanned_letter", "Scanned_Approval_Letter.pdf", PDF, _scan_pdf([
+        "APPROVAL LETTER",
+        "The renewal is approved.",
+        "Approved by John Smith",
+    ])),
+    Doc("xdemo", "x_policy", "Records_Retention_Policy.txt", TXT, _txt(
+        "Records retention policy: invoices, contracts, agreements, purchase orders and payroll records are "
+        "kept for ten years. Termination of the policy requires board approval.\n")),
+    Doc("xother", "xo_nda_ca", "Mutual_NDA_Other.pdf", PDF, _pdf([[
+        "MUTUAL NON-DISCLOSURE AGREEMENT",
+        "This agreement is governed by the laws of the State of California. Invoice #INV-2026-00481.",
+        "Signed: John Smith.",
+    ]])),
 ] + [
     Doc("haystack", f"heron_{i:02d}", f"heron_note_{i:02d}.txt", TXT, _txt(HERON.format(i=i) + "\n"))
     for i in range(60)
@@ -182,6 +237,25 @@ CASES: List[Case] = [
     Case("ar_company", "arabic", "شركة الخليج للتجارة", top1=["arabic_invoice"]),
     # no-result behaviour
     Case("unknown_term", "no_result", "zzqxunknownzzq", empty=True),
+    # Synthetic Xerox-style retrieval cases
+    Case("x_invoice_id", "exact_keyword", "INV-2026-00481", tenant="xdemo", top1=["x_invoice"]),
+    Case("x_invoice_id_spaced", "exact_keyword", "INV 2026 00481", tenant="xdemo", top1=["x_invoice"]),
+    Case("x_contract_no", "exact_keyword", "Contract No. 17/2024", tenant="xdemo", top1=["x_contract"]),
+    Case("x_article", "exact_phrase", "Article 12.4", tenant="xdemo", top1=["x_contract"]),
+    Case("x_aramco", "person_entity", "Saudi Aramco", tenant="xdemo", top1=["x_invoice"]),
+    Case("x_po", "exact_keyword", "PO-2025-0193", tenant="xdemo", top1=["x_po"]),
+    Case("x_expiry", "exact_phrase", "expires on 31 December 2027", tenant="xdemo", top1=["x_contract"]),
+    Case("x_sem_early_exit", "semantic", "agreements that let either side end the contract early", tenant="xdemo",
+         top1=["x_contract", "x_employment_ca"]),
+    Case("x_ca_law", "semantic", "contracts governed by California law", tenant="xdemo",
+         top1=["x_nda_ca", "x_employment_ca", "x_ocr_califomia"], before=["x_nda_ca", "x_nda_tx"]),
+    Case("x_ocr_token", "ocr_fuzzy", "Califomia", tenant="xdemo", top1=["x_ocr_califomia"]),
+    Case("x_john_smith", "person_entity", "John Smith", tenant="xdemo", top1=["x_nda_ca", "x_scanned_letter"]),
+    Case("x_ar_article", "arabic", "المادة 12.4", tenant="xdemo", top1=["x_arabic_contract"]),
+    Case("x_ar_termination", "arabic", "إنهاء العقد", tenant="xdemo", top1=["x_arabic_contract"]),
+    Case("x_payroll", "semantic", "how many people were paid in 2024", tenant="xdemo", top1=["x_payroll"]),
+    Case("x_lease_amount", "exact_phrase", "monthly payment of USD 12,000", tenant="xdemo", top1=["x_lease"]),
+    Case("x_other_tenant", "tenant", "INV-2026-00481", tenant="xother", top1=["xo_nda_ca"], absent=["x_invoice"]),
     # tenant isolation and scoping (every case is also checked for foreign-tenant ids)
     Case("tenant_globex", "tenant", "FOR IMMEDIATE RELEASE", tenant="globex", top1=["globex_release"],
          absent=["press_release"]),
