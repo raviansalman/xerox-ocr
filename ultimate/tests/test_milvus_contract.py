@@ -148,16 +148,12 @@ def test_inserted_row_shape_is_frozen(monkeypatch):
     assert row["user_id"] == "alice" and row["page_number"] == 3 and row["source_file"] == "f1"
 
 
-@pytest.mark.known_defect
-@pytest.mark.xfail(strict=True, reason="KD-SEC-01: user_id is interpolated into the Milvus expr unescaped")
 def test_user_id_is_escaped_in_search_expr(monkeypatch):
     db = _db(monkeypatch)
     db.search_similar(np.zeros(768, dtype=np.float32), limit=5, user_id='bob" or user_id != "bob')
     assert db.collection.search_calls[-1]["expr"] == 'user_id == "bob\\" or user_id != \\"bob"'
 
 
-@pytest.mark.known_defect
-@pytest.mark.xfail(strict=True, reason="KD-SEC-01: query_all_chunks interpolates user_id unescaped")
 def test_user_id_is_escaped_in_full_scan_expr(monkeypatch):
     db = _db(monkeypatch)
     db.query_all_chunks(user_id='bob" or user_id != "bob', limit=10)

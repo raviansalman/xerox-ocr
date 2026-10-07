@@ -96,8 +96,16 @@ def test_unknown_user_sees_nothing(env):
     assert search(env, "FOR IMMEDIATE RELEASE", user="carol") == []
 
 
-@pytest.mark.known_defect
-@pytest.mark.xfail(strict=True, reason="KD-SEC-01: crafted userId escapes the Milvus tenant filter")
+def test_user_id_with_quote_still_finds_own_documents(env):
+    # Guards the escaping fix for KD-SEC-01: a legitimate id containing a quote must match
+    # its own rows, otherwise an "escaped" expression that Milvus rejects would look like isolation.
+    path = env["dir"] / "quoted.txt"
+    path.write_text("Quarterly toner audit for the OBrien account.\n", encoding="utf-8")
+    _ingest(env["task"], path, "quoted_doc", 'o"brien', "text/plain")
+    env["vi"].vector_db.collection.flush()
+    assert search(env, "toner audit", user='o"brien') == ["quoted_doc"]
+
+
 def test_crafted_user_id_cannot_read_other_tenants(env):
     assert "bob_release" not in search(env, "FOR IMMEDIATE RELEASE", user='alice" or user_id != "alice')
 

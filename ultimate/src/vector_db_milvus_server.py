@@ -48,6 +48,11 @@ except ImportError:  # Fallback for relative imports
         TemporalReasoningEngine = None  # type: ignore
 
 
+def _escape_expr_value(value: Any) -> str:
+    """Escape a value for use inside a double-quoted Milvus expr string literal."""
+    return str(value).replace("\\", "\\\\").replace('"', '\\"')
+
+
 @dataclass
 class SearchResult:
     """Represents a search result from the vector database."""
@@ -652,17 +657,12 @@ class MilvusServerVectorDatabase:
                 # Ensure user_id is a string and properly escaped
                 user_id_str = str(user_id).strip()
                 if user_id_str:
-                    filter_expr = f'user_id == "{user_id_str}"'
+                    filter_expr = f'user_id == "{_escape_expr_value(user_id_str)}"'
             # Add additional filter conditions (bucket_id, path)
             # Production: escape strings for Milvus expr; use lowercase like (Milvus 2.x)
             # Path uses (exact or prefix) with proper parentheses for AND/OR precedence
             if filter_conditions:
-                def _escape(s):
-                    """Escape double-quotes for Milvus expr string literals."""
-                    if not isinstance(s, str):
-                        return str(s)
-                    # Escape backslash first, then double-quote
-                    return str(s).replace("\\", "\\\\").replace('"', '\\"')
+                _escape = _escape_expr_value
 
                 conditions = []
                 if filter_expr:
@@ -723,7 +723,7 @@ class MilvusServerVectorDatabase:
                         f"Milvus expr failed ({expr_err}), falling back to app-side bucket/path/connection filter"
                     )
                     user_id_str = str(user_id).strip() if user_id else ""
-                    filter_expr_fallback = f'user_id == "{user_id_str}"' if user_id_str else ""
+                    filter_expr_fallback = f'user_id == "{_escape_expr_value(user_id_str)}"' if user_id_str else ""
                     results = self.collection.search(
                         data=[query_embedding.tolist()],
                         anns_field="embedding",
@@ -858,14 +858,14 @@ class MilvusServerVectorDatabase:
             else:
                 conditions = []
                 if user_id:
-                    conditions.append(f'user_id == "{user_id}"')
-                
+                    conditions.append(f'user_id == "{_escape_expr_value(user_id)}"')
+
                 if filter_conditions:
                     for key, value in filter_conditions.items():
                         if key == "path":
                             continue # skip path as it is not indexed in milvus
                         if isinstance(value, str):
-                            conditions.append(f'{key} == "{value}"')
+                            conditions.append(f'{key} == "{_escape_expr_value(value)}"')
                         else:
                             conditions.append(f'{key} == {value}')
                 filter_expr = " and ".join(conditions)
