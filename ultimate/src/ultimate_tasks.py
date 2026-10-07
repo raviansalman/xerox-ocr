@@ -34,6 +34,7 @@ from src.scalability_utils import (
     detect_stuck_jobs,
 )
 from src.job_registry import get_job_registry
+from src.net_safety import UnsafeURLError, max_download_bytes, redact_url, safe_get
 
 # Load env
 load_dotenv()
@@ -273,7 +274,7 @@ def download_file(url: str, file_id: str, filename: Optional[str] = None) -> tup
     local_name = _safe_filename(filename or url_name or "", f"{file_id}")
     path = os.path.join(temp_dir, local_name)
 
-    logger.info(f"[DOWNLOAD] {url[:200]}...")
+    logger.info(f"[DOWNLOAD] {redact_url(url)}")
 
     # S3 pre-signed URLs are sensitive to request shape; keep headers simple and deterministic
     headers = {}
@@ -284,7 +285,7 @@ def download_file(url: str, file_id: str, filename: Optional[str] = None) -> tup
         }
     
     try:
-        r = requests.get(url, timeout=60, stream=True, headers=headers, allow_redirects=True)
+        r = safe_get(url, timeout=60, headers=headers)  # SSRF guard, redirects re-checked
         r.raise_for_status()
     except requests.exceptions.HTTPError as e:
         if e.response is not None and e.response.status_code == 403:
@@ -292,9 +293,9 @@ def download_file(url: str, file_id: str, filename: Optional[str] = None) -> tup
                 "403 Forbidden while downloading file. Possible causes: expired pre-signed URL, "
                 "invalid signature, or double-encoded path."
             )
-            logger.error(f"[DOWNLOAD ERROR] {error_msg} url={url[:200]}...")
+            logger.error(f"[DOWNLOAD ERROR] {error_msg} url={redact_url(url)}")
             raise ValueError(f"{error_msg} Original error: {e}")
-            raise
+        raise  # any other HTTP error: never index an error page as the document
     
     # Extract filename from Content-Disposition when present
     disposition_filename: Optional[str] = None
@@ -310,9 +311,19 @@ def download_file(url: str, file_id: str, filename: Optional[str] = None) -> tup
                 pass
             logger.info(f"[DOWNLOAD] Extracted filename from Content-Disposition: {disposition_filename}")
 
+    limit = max_download_bytes()
+    declared = r.headers.get("Content-Length")
+    if declared and declared.isdigit() and int(declared) > limit:
+        r.close()
+        raise ValueError(f"Download exceeds MAX_DOWNLOAD_BYTES ({limit} bytes)")
+    written = 0
     with open(path, "wb") as f:
-        for chunk in r.iter_content(8192):
+        for chunk in r.iter_content(65536):
             if chunk:
+                written += len(chunk)
+                if written > limit:
+                    r.close()
+                    raise ValueError(f"Download exceeds MAX_DOWNLOAD_BYTES ({limit} bytes)")
                 f.write(chunk)
 
     if os.path.getsize(path) == 0:
@@ -435,7 +446,7 @@ def process_ultimate_document_task(
 
     temp_file = None
     terminal_cleanup_ok = False
-    lock_key = f"process_lock:{file_id}" if file_id else None
+    lock_key = f"process_lock:{user_id}:{file_id}" if file_id else None  # tenant-scoped
     lock_acquired = False
     lock_ttl = int(os.getenv("PROCESS_LOCK_TTL", "10800"))  # 3 hours
 
@@ -1006,7 +1017,7 @@ def process_ultimate_document_task(
         # a terminal state (success or permanent failure). Keep file for retries.
         if terminal_cleanup_ok and file_path:
             try:
-                upload_root = os.path.abspath("/app/temp_uploads")
+                upload_root = os.path.abspath(os.getenv("UPLOAD_DIR", "/app/temp_uploads"))
                 abs_file_path = os.path.abspath(str(file_path))
                 if abs_file_path.startswith(upload_root + os.sep) and os.path.isfile(abs_file_path):
                     os.remove(abs_file_path)

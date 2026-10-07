@@ -1903,6 +1903,7 @@ def create_fastapi_app():
         import tempfile
         import shutil
         from src.security import AuthError, Principal, authenticate, require_role, resolve_tenant
+        from src.net_safety import UnsafeURLError, check_url, redact_url, safe_head
 
         app = FastAPI(title="Ultimate Document Processor", version="1.0.0")
 
@@ -2122,7 +2123,7 @@ def create_fastapi_app():
 
         def _get_url_content_length(url: str) -> int:
             try:
-                resp = requests.head(url, allow_redirects=True, timeout=10)
+                resp = safe_head(url, timeout=10)
                 if resp.status_code >= 400:
                     return 0
                 length = resp.headers.get("Content-Length")
@@ -2175,6 +2176,10 @@ def create_fastapi_app():
 
                 if not image_url:
                     raise HTTPException(status_code=400, detail="fileUrl is required")
+                try:
+                    check_url(image_url)
+                except UnsafeURLError as e:
+                    raise HTTPException(status_code=400, detail=f"fileUrl not allowed: {e}")
 
                 # Strict rule: fileId must be provided and non-empty; never auto-generate.
                 if not file_id or (isinstance(file_id, str) and not file_id.strip()):
@@ -2188,7 +2193,7 @@ def create_fastapi_app():
                 
                 # Auto-detect file type if not provided or empty
                 if not file_type or (isinstance(file_type, str) and not file_type.strip()):
-                    logger.info(f"File type not provided, attempting auto-detection from URL: {image_url}")
+                    logger.info(f"File type not provided, attempting auto-detection from URL: {redact_url(image_url)}")
                     
                     # FIRST: Try to detect from URL extension (most reliable)
                     filename = image_url.split('/')[-1].split('?')[0]  # Remove query params
@@ -2237,8 +2242,7 @@ def create_fastapi_app():
                     else:
                         # FALLBACK: Try to get Content-Type from URL (HEAD request)
                         try:
-                            import requests
-                            head_response = requests.head(image_url, timeout=5, allow_redirects=True)
+                            head_response = safe_head(image_url, timeout=5)
                             content_type = head_response.headers.get('Content-Type', '').split(';')[0].strip()
                             
                             if content_type:
@@ -2484,7 +2488,7 @@ def create_fastapi_app():
                 
                 # Save uploaded file to shared volume location (accessible by both containers)
                 # Use temp_uploads directory which is shared between containers
-                temp_uploads_dir = "/app/temp_uploads"
+                temp_uploads_dir = os.getenv("UPLOAD_DIR", "/app/temp_uploads")
                 os.makedirs(temp_uploads_dir, exist_ok=True)
                 
                 # Sanitize filename to avoid path issues
@@ -2497,9 +2501,21 @@ def create_fastapi_app():
                 
                 temp_file_path = os.path.join(temp_uploads_dir, safe_filename)
                 
+                max_upload = int(os.getenv("MAX_UPLOAD_BYTES", str(200 * 1024 * 1024)))
+                buf = bytearray()
                 with open(temp_file_path, 'wb') as f:
-                    content = await file.read()
-                    f.write(content)
+                    while True:
+                        piece = await file.read(1024 * 1024)
+                        if not piece:
+                            break
+                        buf.extend(piece)
+                        if len(buf) > max_upload:
+                            break
+                        f.write(piece)
+                if len(buf) > max_upload:
+                    os.remove(temp_file_path)
+                    raise HTTPException(status_code=413, detail=f"File exceeds MAX_UPLOAD_BYTES ({max_upload} bytes)")
+                content = bytes(buf)
                 
                 logger.info(f"File uploaded: {file.filename} ({len(content)} bytes) to {temp_file_path}")
                 

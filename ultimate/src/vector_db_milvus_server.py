@@ -221,66 +221,11 @@ class MilvusServerVectorDatabase:
             if utility.has_collection(self.collection_name):
                 logger.info(f"Collection {self.collection_name} already exists")
                 self.collection = Collection(self.collection_name)
-                # Skip load() here - will be loaded lazily if auto_load_on_init is True
-                
-                # Check if existing collection has correct dimensions
-                for field in self.collection.schema.fields:
-                    if field.name == "embedding":
-                        existing_dim = field.params.get("dim")
-                        if existing_dim != self.vector_size:
-                            logger.warning(
-                                f"Collection {self.collection_name} has wrong dimension: {existing_dim} "
-                                f"(expected {self.vector_size}). Dropping and recreating..."
-                            )
-                            utility.drop_collection(self.collection_name)
-                            self.collection = None
-                            logger.info(f"Creating collection {self.collection_name} with correct dimension {self.vector_size}")
-                            self._create_collection()
-                            self._create_index()
-                            # Skip load() here - will be loaded lazily if auto_load_on_init is True
-                            return
-                        else:
-                            logger.info(f"Collection {self.collection_name} has correct dimension: {existing_dim}")
-                        break
-                
-                # Collection exists with correct dimensions, just load it
+                # Never drop or recreate an existing collection automatically: a wrong env value
+                # (dimension, collection name) must fail loudly instead of deleting tenant data.
+                self._verify_existing_schema()
                 if not self.collection.has_index():
                     self._create_index()
-                
-                # Check if collection has user_id field
-                try:
-                    schema = self.collection.schema
-                    field_names = [field.name for field in schema.fields]
-                    logger.info(f"Collection fields: {field_names}")
-                    has_user_id = any(field.name == "user_id" for field in schema.fields)
-                    logger.info(f"Collection has user_id field: {has_user_id}")
-                    
-                    if not has_user_id:
-                        logger.warning("Collection does not have user_id field, recreating with new schema...")
-                        utility.drop_collection(self.collection_name)
-                        self.collection = None
-                        logger.info(f"Creating collection {self.collection_name} with user_id field")
-                        self._create_collection()
-                        # Create index for new collection
-                        self._create_index()
-                    else:
-                        logger.info("Collection has user_id field, using existing collection")
-                except Exception as e:
-                    logger.error(f"Error checking collection schema: {e}")
-                    logger.warning("Assuming collection needs recreation due to schema check error")
-                    utility.drop_collection(self.collection_name)
-                    self.collection = None
-                    logger.info(f"Creating collection {self.collection_name} with user_id field")
-                    self._create_collection()
-                    # Create index for new collection
-                    self._create_index()
-                    # Check if index exists, create if not
-                    indexes = self.collection.indexes
-                    if not indexes:
-                        logger.info("No index found, creating index...")
-                        self._create_index()
-                    else:
-                        logger.info(f"Index already exists: {indexes}")
             else:
                 logger.info(f"Creating collection {self.collection_name}")
                 self._create_collection()
@@ -301,6 +246,24 @@ class MilvusServerVectorDatabase:
             logger.error(f"Failed to initialize collection: {e}")
             raise
     
+    def _verify_existing_schema(self):
+        """Refuse to run against a collection whose schema does not match this configuration."""
+        fields = {f.name: f for f in self.collection.schema.fields}
+        emb = fields.get("embedding")
+        existing_dim = emb.params.get("dim") if emb is not None else None
+        if existing_dim != self.vector_size:
+            raise RuntimeError(
+                f"Milvus collection '{self.collection_name}' has embedding dim {existing_dim}, "
+                f"but this process is configured for {self.vector_size}. Refusing to start; "
+                f"fix the embedding model/dimension settings or migrate the collection explicitly."
+            )
+        if "user_id" not in fields:
+            raise RuntimeError(
+                f"Milvus collection '{self.collection_name}' has no user_id field, so tenant isolation "
+                f"is impossible. Refusing to start; migrate the collection explicitly."
+            )
+        logger.info(f"Collection {self.collection_name} schema verified (dim={existing_dim})")
+
     def _create_collection(self):
         """Create a new collection with proper schema."""
         if not MILVUS_AVAILABLE:
