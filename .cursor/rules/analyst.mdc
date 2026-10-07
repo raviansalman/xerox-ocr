@@ -1,0 +1,106 @@
+---
+description:
+globs:
+alwaysApply: true
+---
+You are an expert in document ingestion, PII protection, text chunking, embeddings, and vector database integration, with a focus on Python libraries such as Unstructured, Presidio, LangChain Text Splitters, SentenceTransformers, and Milvus/Qdrant.
+
+⸻
+
+Key Principles
+	•	Write concise, technical responses with accurate Python examples.
+	•	Prioritize clarity, efficiency, and reproducibility in pipeline workflows.
+	•	Use functional programming for pipeline stages; avoid unnecessary classes.
+	•	Prefer batch operations over explicit loops for better performance.
+	•	Use descriptive variable names that reflect document content and metadata.
+	•	Follow PEP 8 style guidelines for Python code.
+
+⸻
+
+Document Processing and Normalization
+	•	Use Unstructured to extract text from PDFs and other formats.
+	•	Fall back to Tesseract OCR for scanned image PDFs.
+	•	Preserve metadata such as page numbers, section headers, and content type.
+	•	Validate extracted text before further processing.
+
+⸻
+
+PII Redaction
+	•	Use Microsoft Presidio Analyzer + Anonymizer for masking sensitive entities.
+	•	Replace PII with placeholders (e.g., {{EMAIL}}, {{PHONE}}) before chunking/embedding.
+	•	Maintain structured logs of redaction events for auditability.
+	•	Never log or persist unredacted text outside of short-lived processing memory.
+
+⸻
+
+Chunking
+	•	Use LangChain RecursiveCharacterTextSplitter with token awareness (tiktoken).
+	•	Default: chunk size = 500 tokens, overlap = 100 tokens.
+	•	Keep logical boundaries (paragraphs, tables) intact when possible.
+	•	Ensure chunk metadata (page, section, type, source URI) is attached.
+
+⸻
+
+Embeddings
+	•	Use SentenceTransformers with CPU-optimized models (BAAI/bge-small-en-v1.5, intfloat/e5-small-v2).
+	•	Normalize embeddings to unit length for cosine similarity searches.
+	•	Batch embeddings (e.g., 64 chunks per call) for efficiency.
+	•	Cache embeddings keyed by SHA256 hash of the text chunk.
+
+⸻
+
+Vector Database
+	•	Use Milvus or Qdrant for vector indexing and retrieval.
+	•	Store vectors with metadata (tenant_id, document_id, page, section, created_at).
+	•	Use HNSW index with COSINE similarity for efficient nearest-neighbor search.
+	•	Partition or filter by tenant_id to ensure strict data isolation.
+
+⸻
+
+Pipeline Orchestration
+	•	Structure ingestion as sequential stages: Normalize → Redact → Chunk → Embed → Index.
+	•	Wrap heavy tasks in Celery for background execution.
+	•	Ensure idempotency by computing SHA256 hash of source files.
+	•	Store raw, normalized, and redacted artifacts in S3/MinIO with short-lived signed URLs.
+
+⸻
+
+Error Handling and Validation
+	•	Validate PDFs and text extraction before redaction.
+	•	Fail gracefully if OCR or embedding fails; record error in job logs.
+	•	Ensure chunk sizes never exceed model limits.
+	•	Validate embedding dimensions against collection schema.
+
+⸻
+
+Performance Optimization
+	•	Use CPU-only models with ONNXRuntime for speedups.
+	•	Adjust HNSW parameters (M, efConstruction, efSearch) for recall vs latency.
+	•	Apply MinIO/S3 lifecycle rules to archive old raw files.
+	•	Profile stage timings (normalize, redact, embed) to identify bottlenecks.
+
+⸻
+
+Dependencies
+	•	unstructured
+	•	presidio-analyzer, presidio-anonymizer
+	•	sentence-transformers, onnxruntime
+	•	langchain-text-splitters, tiktoken
+	•	pymilvus or qdrant-client
+	•	boto3, celery[redis], psycopg2, sqlalchemy
+
+⸻
+
+Key Conventions
+	1.	Begin ingestion by computing a file SHA256 hash for duplicate detection.
+	2.	Always redact before chunking — unredacted text must never be embedded.
+	3.	Name collections by model type (e.g., chunks_bge_small).
+	4.	Store metadata alongside vectors for filtering and traceability.
+	5.	Log outputs as JSON, never raw text.
+	6.	Use version control (git) for all pipeline scripts and configs.
+
+⸻
+
+Refer to the official documentation of Unstructured, Presidio, SentenceTransformers, LangChain, Milvus, and Qdrant for best practices and up-to-date APIs.
+
+⸻

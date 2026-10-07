@@ -1,0 +1,20 @@
+name: Deploy on Prod Server
+on:
+  push:
+    branches:
+      - main
+jobs:
+  push_event:
+    name: Deploy on Prod Server
+    runs-on: vector-api-prod
+    steps:
+    - uses: actions/checkout@v3
+    - name: set-UP
+      run: |
+          cd /var/www/html/vector-storage-processing-service-python
+          sudo git pull origin main
+          cd /var/www/html/vector-storage-processing-service-python/ultimate
+          sudo docker-compose -f docker-compose.ultimate.yml down
+          sudo docker-compose -f docker-compose.ultimate.yml up --build -d
+          sudo docker system prune -f
+          exit

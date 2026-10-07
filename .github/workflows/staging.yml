@@ -1,0 +1,20 @@
+name: Deploy on Staging Server
+on:
+  push:
+    branches:
+      - develop
+jobs:
+  push_event:
+    name: Deploy on Staging Server
+    runs-on: vector-api-st
+    steps:
+    - uses: actions/checkout@v3
+    - name: set-UP
+      run: |
+          cd /var/www/html/vector-storage-processing-service-python
+          sudo git pull
+          cd /var/www/html/vector-storage-processing-service-python/ultimate
+          sudo docker-compose -f docker-compose.ultimate.yml down
+          sudo docker-compose -f docker-compose.ultimate.yml up --build -d
+          sudo docker system prune -f
+          exit

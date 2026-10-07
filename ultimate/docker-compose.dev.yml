@@ -1,0 +1,59 @@
+# Development Docker Compose Override
+# This file mounts source code as volumes for hot-reload during development
+# Usage: docker compose -f docker-compose.ultimate.yml -f docker-compose.dev.yml up -d
+#
+# IMPORTANT: This overrides the COPY commands in Dockerfile.ultimate
+# Changes to Python files will be reflected immediately (2-3 seconds)
+
+services:
+  ultimate-search:
+    environment:
+      SEMANTIC_STRICTNESS: precision
+    volumes:
+      # Mount ultimate source files (overrides COPY in Dockerfile)
+      - ../ultimate/src/ultimate_search_processor.py:/app/src/ultimate_search_processor.py
+      - ../ultimate/src/ultimate_celery_app.py:/app/src/ultimate_celery_app.py
+      - ../ultimate/src/ultimate_tasks.py:/app/src/ultimate_tasks.py
+      - ../ultimate/src/ultimate_vector_integration.py:/app/src/ultimate_vector_integration.py
+      - ../ultimate/src/workflow_manager.py:/app/src/workflow_manager.py
+      - ../ultimate/src/vector_db_milvus_server.py:/app/src/vector_db_milvus_server.py
+      - ../ultimate/src/embeddings.py:/app/src/embeddings.py
+      - ../ultimate/src/chunking.py:/app/src/chunking.py
+      - ../ultimate/src/normalize.py:/app/src/normalize.py
+      - ../ultimate/src/search.py:/app/src/search.py
+      - ../ultimate/ultimate_ui.py:/app/ultimate_ui.py
+      - ../ultimate/semantic:/app/semantic
+      - ./src/semantic/semantic_pipeline.py:/app/src/semantic/semantic_pipeline.py
+      # Keep existing volumes
+      - ./temp_uploads:/app/temp_uploads
+      - ./logs:/app/logs
+      - ./data:/app/data
+    # Enable auto-reload for FastAPI (detects file changes automatically)
+    command: ["python", "-m", "uvicorn", "ultimate_ui:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  ultimate-celery-worker:
+    environment:
+      SEMANTIC_STRICTNESS: precision
+    volumes:
+      # Mount ultimate source files (overrides COPY in Dockerfile)
+      - ../ultimate/src/ultimate_search_processor.py:/app/src/ultimate_search_processor.py
+      - ../ultimate/src/ultimate_celery_app.py:/app/src/ultimate_celery_app.py
+      - ../ultimate/src/ultimate_tasks.py:/app/src/ultimate_tasks.py
+      - ../ultimate/src/ultimate_vector_integration.py:/app/src/ultimate_vector_integration.py
+      - ../ultimate/src/workflow_manager.py:/app/src/workflow_manager.py
+      - ../ultimate/src/vector_db_milvus_server.py:/app/src/vector_db_milvus_server.py
+      - ../ultimate/src/embeddings.py:/app/src/embeddings.py
+      - ../ultimate/src/chunking.py:/app/src/chunking.py
+      - ../ultimate/src/normalize.py:/app/src/normalize.py
+      - ../ultimate/src/search.py:/app/src/search.py
+      - ../ultimate/ultimate_ui.py:/app/ultimate_ui.py
+      - ../ultimate/semantic:/app/semantic
+      - ../ultimate/src/semantic:/app/src/semantic:ro
+      # Keep existing volumes
+      - ./temp_uploads:/app/temp_uploads
+      - ./logs:/app/logs
+      - ./data:/app/data
+    # Celery worker (no --reload flag, use quick-update.sh or restart manually for changes)
+    # Note: Celery doesn't support --reload, but volume mounts allow quick restarts
+    command: ["celery", "-A", "src.ultimate_celery_app", "worker", "--loglevel=info", "--concurrency=2"]
+

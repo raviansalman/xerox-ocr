@@ -1,0 +1,140 @@
+# Search-only deployment (standalone file).
+# Deploy this file by itself on the search server.
+#
+# Milvus + Redis point to the PROCESSING server (172.31.90.23 private IP / 52.22.242.248 public).
+# Override at deploy time via env vars if the IPs change:
+#   MILVUS_HOST=<processing-ip>  REDIS_URL=redis://<processing-ip>:6379/0
+#
+# Run:
+#   docker-compose -f docker-compose.search-only.yml up -d --build
+#   # or via universal_deploy.sh (STAGING_ROLE=search, ULTIMATE_ENV_FILE=...)
+#
+# ── Staging processing server IPs (update these if the server changes) ───────
+# Private (preferred — stays stable across reboots, lower latency, no SG cost):
+#   172.31.90.23
+# Public (fallback if private not reachable):
+#   52.22.242.248
+# ─────────────────────────────────────────────────────────────────────────────
+# Compose project name: docker-compose v1.x ignores top-level `name:` — use explicit -p.
+#   universal_deploy.sh: -p ultimate-search
+#   Manual:   export COMPOSE_PROJECT_NAME=ultimate-search
+# Remote Milvus/Redis: docker-compose.deploy.generated.yml + ULTIMATE_ENV_FILE on host.
+#
+# Stable container_name on the API only. Embedder may be scaled (replicas>1) via generated override — then
+# Compose keeps generated names (ultimate-search_ultimate-embedder-search_1, …).
+
+services:
+  ultimate-search:
+    container_name: ultimate-search-api
+    build:
+      context: ..
+      dockerfile: ultimate/Dockerfile.ultimate
+    ports:
+      - "8000:8000"
+    command:
+      - uvicorn
+      - search_api:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --workers
+      - "4"
+      - --timeout-keep-alive
+      - "600"
+    env_file:
+      - ${ULTIMATE_ENV_FILE:-docker.staging.env}
+    environment:
+      PYTHONPATH: /app
+      SEARCH_ONLY: "true"
+      SEARCH_DEFAULT_METHOD: both
+      SEARCH_REQUEST_TIMEOUT: "60"
+      SEMANTIC_STRICTNESS: precision
+      ENABLE_QUERY_NER: "0"
+      # ── Processing server connections ──────────────────────────────────────
+      # These override ULTIMATE_ENV_FILE values (MILVUS_HOST=milvus / REDIS_HOST=redis)
+      # which only exist on the processing server as local Docker service names.
+      #
+      # IMPORTANT: The private IP (172.31.90.23) is BLOCKED by the AWS Security
+      # Group — only the public IP (52.22.242.248) is open on 19530 and 6379.
+      # To switch to private IP, add an inbound SG rule on the processing server
+      # allowing TCP 19530 + 6379 from the search server's security group.
+      #
+      # WARNING: 52.22.242.248 is a DYNAMIC public IP. If the processing server
+      # is stopped and restarted it will get a new IP. Assign an AWS Elastic IP
+      # to the processing server to make this permanent.
+      MILVUS_HOST: ${MILVUS_HOST:-52.22.242.248}
+      MILVUS_PORT: ${MILVUS_PORT:-19530}
+      REDIS_URL: ${REDIS_URL:-redis://52.22.242.248:6379/0}
+      # REDIS_HOST/PORT/DB mirror REDIS_URL for code paths that build the URL
+      # from individual parts (avoids env file "redis" hostname being used when remote).
+      REDIS_HOST: ${REDIS_HOST:-52.22.242.248}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      REDIS_DB: ${REDIS_DB:-0}
+      # ──────────────────────────────────────────────────────────────────────
+      EMBEDDER_SEARCH_URL: http://ultimate-embedder-search:8080/embed
+      # This server is a subscriber: reads the metadata index from Redis,
+      # never writes. Processing server (METADATA_INDEX_PUBLISHER=true in
+      # env file) is the sole publisher. Explicit override so a stale env file
+      # value cannot bleed through.
+      METADATA_INDEX_PUBLISHER: "false"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./src:/app/src
+      - ./ultimate_ui.py:/app/ultimate_ui.py
+      - ./search_api.py:/app/search_api.py
+      - ./logs:/app/logs
+      - ./data:/app/data
+    depends_on:
+      - ultimate-embedder-search
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    networks:
+      - ultimate-search
+
+  ultimate-embedder-search:
+    build:
+      context: ..
+      dockerfile: ultimate/Dockerfile.ultimate
+    command:
+      - uvicorn
+      - src.embedder_service:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+      - --workers
+      - "4"
+    env_file:
+      - ${ULTIMATE_ENV_FILE:-docker.staging.env}
+    environment:
+      OMP_NUM_THREADS: "4"
+      MKL_NUM_THREADS: "4"
+      OPENBLAS_NUM_THREADS: "4"
+      VECLIB_MAXIMUM_THREADS: "4"
+      NUMEXPR_NUM_THREADS: "4"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./src:/app/src
+      - ./data:/app/data
+      - ./logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 15s
+      retries: 6
+      start_period: 90s
+    networks:
+      - ultimate-search
+
+networks:
+  ultimate-search:
+    driver: bridge

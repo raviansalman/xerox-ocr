@@ -1,0 +1,212 @@
+# Monolith stack (API + Milvus + Redis + workers). Resource limits / celery scale match
+# the former docker-compose-scaling.override.yml — single file, no extra -f override.
+services:
+  ultimate-search:
+    build:
+      context: ..
+      dockerfile: ultimate/Dockerfile.ultimate
+    ports:
+      - 8000:8000
+    command:
+      - uvicorn
+      - ultimate_ui:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - '8000'
+      - --workers
+      - '1'
+      - --timeout-keep-alive
+      - '600'
+    deploy:
+      resources:
+        reservations:
+          cpus: '1.0'
+          memory: 1G
+        limits:
+          cpus: '4.0'
+          memory: 5G
+    env_file:
+      - ${ULTIMATE_ENV_FILE:-docker.staging.env}
+    environment:
+      PYTHONPATH: /app
+      TESSERACT_CMD: /usr/bin/tesseract
+      REDIS_URL: redis://redis:6379/0
+      QUEUE_SHARD_COUNT: "0"
+      EMBEDDER_SEARCH_URL: http://ultimate-embedder-search:8080/embed
+      SEMANTIC_STRICTNESS: precision
+      ENABLE_QUERY_NER: '0'
+      SKIP_IMAGE_CAPTIONING_IN_PROCESSOR: 'true'
+      # Production: time-bounded search to avoid connection resets
+      SEARCH_DEFAULT_METHOD: both
+      SEARCH_REQUEST_TIMEOUT: '60'
+    volumes:
+      - ./src:/app/src
+      - ./ultimate_ui.py:/app/ultimate_ui.py
+      - ./temp_uploads:/app/temp_uploads
+      - ./logs:/app/logs
+      - ./data:/app/data
+    depends_on:
+      - milvus
+      - redis
+    networks:
+      - ultimate-search
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
+      # Give the app time to warm up models before marking it unhealthy
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+
+  # specialized workers per file type for full scalability
+  ultimate-celery-pdf:
+    build: { context: .., dockerfile: ultimate/Dockerfile.ultimate }
+    command: [ "/bin/bash", "-c", "export PYTHONPATH=/app && exec celery -A src.ultimate_celery_app worker --loglevel=info --pool=solo --concurrency=1 --prefetch-multiplier=1 --queues=ultimate_pdf,ultimate_pdf_large --max-tasks-per-child=10 --max-memory-per-child=1000000" ]
+    deploy:
+      replicas: 0
+      resources: { limits: { memory: 1200M } }
+    env_file: [ "${ULTIMATE_ENV_FILE:-docker.staging.env}" ]
+    environment: { PYTHONPATH: /app, REDIS_URL: 'redis://redis:6379/0' }
+    volumes: [ "./temp_uploads:/app/temp_uploads", "./logs:/app/logs", "./data:/app/data", "./src:/app/src" ]
+    depends_on:
+      - milvus
+      - redis
+    networks: [ ultimate-search ]
+    restart: unless-stopped
+
+  ultimate-celery-spreadsheet:
+    build: { context: .., dockerfile: ultimate/Dockerfile.ultimate }
+    command: [ "/bin/bash", "-c", "export PYTHONPATH=/app && exec celery -A src.ultimate_celery_app worker --loglevel=info --pool=solo --concurrency=1 --prefetch-multiplier=1 --queues=ultimate_spreadsheet,ultimate_spreadsheet_large --max-tasks-per-child=10 --max-memory-per-child=1200000" ]
+    deploy:
+      replicas: 0
+      resources: { limits: { memory: 2.0G, cpus: '0.8' } }
+    env_file: [ "${ULTIMATE_ENV_FILE:-docker.staging.env}" ]
+    environment: { PYTHONPATH: /app, REDIS_URL: 'redis://redis:6379/0' }
+    volumes: [ "./temp_uploads:/app/temp_uploads", "./logs:/app/logs", "./data:/app/data", "./src:/app/src" ]
+    depends_on:
+      - milvus
+      - redis
+    networks: [ ultimate-search ]
+    restart: unless-stopped
+
+  ultimate-celery-word:
+    build: { context: .., dockerfile: ultimate/Dockerfile.ultimate }
+    command: [ "/bin/bash", "-c", "export PYTHONPATH=/app && exec celery -A src.ultimate_celery_app worker --loglevel=info --pool=solo --concurrency=1 --prefetch-multiplier=1 --queues=ultimate_word,ultimate_word_large --max-tasks-per-child=10" ]
+    deploy: { replicas: 0, resources: { limits: { memory: 600M, cpus: '0.5' } } }
+    env_file: [ "${ULTIMATE_ENV_FILE:-docker.staging.env}" ]
+    environment: { PYTHONPATH: /app, REDIS_URL: 'redis://redis:6379/0' }
+    volumes: [ "./temp_uploads:/app/temp_uploads", "./logs:/app/logs", "./data:/app/data", "./src:/app/src" ]
+    depends_on:
+      - milvus
+      - redis
+    networks: [ ultimate-search ]
+    restart: unless-stopped
+
+  ultimate-celery-ppt:
+    build: { context: .., dockerfile: ultimate/Dockerfile.ultimate }
+    command: [ "/bin/bash", "-c", "export PYTHONPATH=/app && exec celery -A src.ultimate_celery_app worker --loglevel=info --pool=solo --concurrency=1 --prefetch-multiplier=1 --queues=ultimate_powerpoint,ultimate_powerpoint_large --max-tasks-per-child=10" ]
+    deploy: { replicas: 0, resources: { limits: { memory: 800M, cpus: '0.5' } } }
+    env_file: [ "${ULTIMATE_ENV_FILE:-docker.staging.env}" ]
+    environment: { PYTHONPATH: /app, REDIS_URL: 'redis://redis:6379/0' }
+    volumes: [ "./temp_uploads:/app/temp_uploads", "./logs:/app/logs", "./data:/app/data", "./src:/app/src" ]
+    depends_on:
+      - milvus
+      - redis
+    networks: [ ultimate-search ]
+    restart: unless-stopped
+
+  ultimate-celery-image:
+    build: { context: .., dockerfile: ultimate/Dockerfile.ultimate }
+    command: [ "/bin/bash", "-c", "export PYTHONPATH=/app && exec celery -A src.ultimate_celery_app worker --loglevel=info --pool=solo --concurrency=1 --prefetch-multiplier=1 --queues=ultimate_image,ultimate_image_large --max-tasks-per-child=10" ]
+    deploy: { replicas: 0, resources: { limits: { memory: 1G, cpus: '0.8' } } }
+    env_file: [ "${ULTIMATE_ENV_FILE:-docker.staging.env}" ]
+    environment: { PYTHONPATH: /app, REDIS_URL: 'redis://redis:6379/0', SKIP_IMAGE_CAPTIONING_IN_PROCESSOR: 'true' }
+    volumes: [ "./temp_uploads:/app/temp_uploads", "./logs:/app/logs", "./data:/app/data", "./src:/app/src" ]
+    depends_on:
+      - milvus
+      - redis
+    networks: [ ultimate-search ]
+    restart: unless-stopped
+
+  ultimate-celery-ocr:
+    build: { context: .., dockerfile: ultimate/Dockerfile.ultimate }
+    command: [ "/bin/bash", "-c", "export PYTHONPATH=/app && exec celery -A src.ultimate_celery_app worker --loglevel=info --pool=solo --concurrency=1 --prefetch-multiplier=1 --queues=ultimate_ocr,ultimate_ocr_large --max-tasks-per-child=10 --max-memory-per-child=1000000" ]
+    deploy:
+      replicas: 0
+      resources: { limits: { memory: 1200M } }
+    env_file: [ "${ULTIMATE_ENV_FILE:-docker.staging.env}" ]
+    environment: { PYTHONPATH: /app, REDIS_URL: 'redis://redis:6379/0' }
+    volumes: [ "./temp_uploads:/app/temp_uploads", "./logs:/app/logs", "./data:/app/data", "./src:/app/src" ]
+    depends_on: { milvus: { condition: service_healthy }, redis: { condition: service_healthy } }
+    networks: [ ultimate-search ]
+    restart: unless-stopped
+
+  ultimate-embedder:
+    build: { context: .., dockerfile: ultimate/Dockerfile.ultimate }
+    command: [ "uvicorn", "src.embedder_service:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "0", "--timeout-keep-alive", "600" ]
+    environment:
+      - OMP_NUM_THREADS=4
+      - MKL_NUM_THREADS=4
+      - OPENBLAS_NUM_THREADS=4
+      - VECLIB_MAXIMUM_THREADS=4
+      - NUMEXPR_NUM_THREADS=4
+    deploy:
+      replicas: 1
+      resources: { limits: { memory: 2G, cpus: '4.0' }, reservations: { memory: 400M } }
+    networks: [ ultimate-search ]
+    restart: unless-stopped
+    healthcheck: { test: [ "CMD", "curl", "-f", "http://localhost:8080/health" ], interval: 30s }
+
+  ultimate-embedder-search:
+    build: { context: .., dockerfile: ultimate/Dockerfile.ultimate }
+    command: [ "uvicorn", "src.embedder_service:app", "--host", "0.0.0.0", "--port", "8080", "--workers", "1" ]
+    environment:
+      - OMP_NUM_THREADS=4
+      - MKL_NUM_THREADS=4
+      - OPENBLAS_NUM_THREADS=4
+      - VECLIB_MAXIMUM_THREADS=4
+      - NUMEXPR_NUM_THREADS=4
+    deploy:
+      resources: { limits: { memory: 2G, cpus: '2.0' }, reservations: { memory: 800M } }
+    env_file: [ "${ULTIMATE_ENV_FILE:-docker.staging.env}" ]
+    networks: [ ultimate-search ]
+    restart: unless-stopped
+    healthcheck: { test: [ "CMD", "curl", "-f", "http://localhost:8080/health" ], interval: 30s }
+
+  milvus:
+    image: milvusdb/milvus:v2.3.1
+    command: [ "milvus", "run", "standalone" ]
+    environment: [ "ETCD_USE_EMBED=true", "ETCD_DATA_DIR=/var/lib/milvus/etcd", "ETCD_QUOTA_BACKEND_BYTES=4294967296", "COMMON_STORAGETYPE=local", "MINIO_ADDRESS=localhost:9000" ]
+    volumes: [ "./data/milvus:/var/lib/milvus" ]
+    deploy:
+      resources:
+        limits:
+          memory: 5G
+          cpus: '2.0'
+        reservations:
+          memory: 1G
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:9091/healthz" ]
+      interval: 30s
+      start_period: 90s
+      timeout: 20s
+      retries: 5
+    networks:
+      - ultimate-search
+
+  redis:
+    image: redis:7-alpine
+    command: [ "redis-server", "--appendonly", "yes" ]
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./data/redis:/data
+    deploy: { resources: { limits: { memory: 200M } } }
+    healthcheck: { test: [ "CMD", "redis-cli", "ping" ], interval: 10s }
+    networks: [ ultimate-search ]
+
+networks:
+  ultimate-search:
+    driver: bridge

@@ -1,0 +1,70 @@
+# Milvus standalone configuration — tuned for stability under concurrent insert load.
+# Key fixes:
+#   1. etcd heartbeat/election timeouts raised to prevent leader flapping
+#   2. etcd quota raised so write amplification from inserts doesn't hit the default 2GB limit
+#   3. dataCoord segment/compaction flushInterval tuned to reduce IO bursts
+#   4. queryNode gracePeriod increased so load operations complete under pressure
+
+etcd:
+  # Embedded etcd parameters — prevents leader election loss under concurrent writes
+  # Default heartbeat is 500ms / election 25000ms which is too aggressive inside Docker
+  config:
+    autoCompactionMode: periodic
+    autoCompactionRetention: "1"
+  # Quota backend size: raise from 2GB (default) to 4GB so WAL doesn't exhaust space
+  # which causes etcd to refuse writes → leader changed → worker disconnect
+  kvSubPath: meta
+
+  # Heartbeat/election tuning — these are passed via env vars in docker-compose
+  # ETCD_HEARTBEAT_INTERVAL=200  (ms, default 100) — slower heartbeat, more stable
+  # ETCD_ELECTION_TIMEOUT=2000   (ms, default 1000) — more time to elect new leader
+
+common:
+  gracefulTime: 5000   # ms — time to wait for graceful shutdown before forcing
+  gracefulStopTimeout: 30  # seconds — total graceful stop window
+
+dataCoord:
+  segment:
+    maxSize: 512          # MB — keep segments small so flush IO doesn't spike  
+    sealProportion: 0.23  # seal when 23% full (smaller, more frequent flushes = lower peak IO)
+    assignmentExpiration: 2000  # ms
+  compaction:
+    enableAutoCompaction: false   # DISABLE auto-compaction during load — reduces IO spikes
+  gc:
+    interval: 3600   # seconds — run GC hourly only
+
+dataNode:
+  dataSync:
+    flowGraph:
+      maxQueueLength: 16   # limit in-flight segment write queue depth
+      maxParallelism: 2    # only 2 parallel segment writes at a time
+
+queryCoord:
+  autoHandoff: true
+  autoBalance: false     # no auto-balance during load tests
+  checkHandoffInterval: 5000  # ms
+
+rootCoord:
+  minSegmentSizeToEnableIndex: 0
+
+proxy:
+  maxNameLength: 255
+  maxTaskNum: 1024
+  maxFieldNum: 64
+
+log:
+  level: warn   # reduce log noise under load (was info)
+  file:
+    maxSize: 100
+    maxBackups: 3
+    maxAge: 3
+
+mq:
+  type: rocksmq
+
+rocksmq:
+  lrucacheratio: 0.06
+  rocksmqPageSize: 67108864   # 64MB page size
+  retentionTimeInMinutes: 30  # 30-minute message retention (was 4320 = 3 days)
+  retentionSizeInMB: 1024     # 1GB retention size (was 8192 = 8GB)
+  compactionInterval: 1800    # compact every 30 minutes
