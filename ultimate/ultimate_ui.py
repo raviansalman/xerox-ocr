@@ -1570,7 +1570,10 @@ def create_html_ui():
                     },
                     body: JSON.stringify(body)
                 })
-                .then(response => response.json())
+                .then(response => response.json().then(data => {
+                    if (!response.ok) throw new Error(formatApiDetail(data) + ' (HTTP ' + response.status + ')');
+                    return data;
+                }))
                 .then(data => {
                     // Handle search-vector response format
                     let results = [];
