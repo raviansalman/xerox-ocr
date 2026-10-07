@@ -1,5 +1,10 @@
 # Target search architecture: natural-language document query engine
 
+> Part of the Document Intelligence Engine design (`DOCUMENT_INTELLIGENCE_ARCHITECTURE.md`). This document covers
+> retrieval and answering; the document model, ingestion, planner, security, deployment, evaluation and migration
+> each have their own document. **Phase labels below (S1 to S7) are from the first draft;** the authoritative
+> numbering is `MIGRATION_PLAN.md` (S0 to S15), mapped in section 24.
+
 Status: **design only.** Nothing in this document is implemented. The current search code is frozen: no
 restoration of `LOCATION_PEERS`, `threading` or the legacy query-understanding stack, no Milvus schema, chunking or
 embedding changes. Companion documents: `docs/SEARCH_FORENSICS.md` (what exists today),
@@ -437,21 +442,20 @@ Metrics (per query type and overall):
 Every change to retrieval runs the full set; baselines are re-recorded only deliberately (the existing golden test
 already fails when a case starts or stops passing).
 
-## 24. Migration strategy from current search (recommended implementation sequence)
+## 24. Migration strategy from current search
 
-Each phase is separately approved and ends with the golden comparison. The current `/search` remains available
-until the new path is better on the agreed metrics.
+Superseded by `MIGRATION_PLAN.md`. Mapping from the phase labels used in this document:
 
-| Phase | Content | Touches current search? |
-|---|---|---|
-| **S0** | Production reconciliation (section 0); extend golden with Xerox data; agree metrics and targets | No |
-| **S1** | Foundations: `AuthContext` and request context object (fixes KD-SRCH-03), page numbers (KD-OCR-02), document registry in Postgres, dual-write at ingest, backfill registry and chunk text from Milvus, normalized and OCR-folded text fields | Ingest only; search unchanged |
-| **S2** | New retrieval package (`search/`: planner, lexical, vector, fusion, result model) behind `SEARCH_ENGINE=v2`, rule planner, exact tier + RRF, configurable vector k; **shadow mode** comparing v1 and v2 on golden and logged queries | No (parallel path) |
-| **S3** | Reranker with health, OCR-tolerant matching, Arabic analyzer, calibrated no-result floor; per-tenant opt-in cutover | Opt-in |
-| **S4** | Classification, field and entity extraction, structured retriever, aggregation executor, `explain` | New capability |
-| **S5** | Clause segmentation and clause index; RAG with citations | New capability |
-| **S6** | Visual regions (signatures), signer association; optional LLM planner; optional Milvus 2.6 upgrade | New capability |
-| **S7** | Remove the legacy search code (the dead supplements, `enhance_query`, constraint ranking) once v2 is default | Deletion |
+| Label here | `MIGRATION_PLAN.md` |
+|---|---|
+| S0 (reconciliation, Xerox data, metrics) | S0 |
+| S1 (AuthContext, page numbers, registry, dual write, normalized fields) | S1, S2, S3, S4 |
+| S2 (new retrieval package, rule planner, exact tier, shadow mode) | S5, S6, S7, S8 (shadow comparison: S13) |
+| S3 (reranker, OCR-tolerant matching, Arabic analyzer, no-result floor, opt-in cut-over) | S5 (analyzer, OCR fold), S9 (reranker, floors), S14 (cut-over) |
+| S4 (classification, extraction, structured retriever, aggregation) | S10 |
+| S5 (clauses, RAG) | S12 |
+| S6 (visual regions, LLM planner, optional Milvus 2.6) | S11, S7 (LLM planner), later (Milvus upgrade) |
+| S7 (remove legacy search code) | S15 |
 
 Not done at any point without separate approval: restoring the legacy names, changing the existing collection
 schema or embedding model in place, mixing tenants in any shared index.
