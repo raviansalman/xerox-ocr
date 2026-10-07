@@ -61,9 +61,7 @@ users.json
 .env.local
 .env.production
 
-# Test files
-test_*.py
-*_test.py
+# Test files (test_*.py is tracked: ultimate/tests holds the regression suite)
 test_files/
 docker.env
 local_documents/
@@ -72,3 +70,6 @@ tools/
 *.env
 !.env.example
 docker.env.search.local
+
+# Test caches
+.pytest_cache/

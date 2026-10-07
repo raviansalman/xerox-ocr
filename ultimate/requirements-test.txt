@@ -1,0 +1,33 @@
+# Test-only environment: application deps pinned as in requirements_ultimate.txt, without the
+# torch / transformers / sentence-transformers stack (tests use a stand-in embedder).
+setuptools==68.0.0
+numpy==1.26.4
+pymilvus==2.4.0
+marshmallow==3.20.2
+fastapi==0.104.1
+uvicorn==0.24.0
+python-multipart==0.0.9
+pydantic>=2.7.4
+requests==2.31.0
+celery[redis]==5.3.4
+redis==4.6.0
+python-dotenv==1.0.0
+python-dateutil==2.8.2
+prometheus-client==0.20.0
+fuzzywuzzy==0.18.0
+python-Levenshtein==0.25.0
+pytesseract==0.3.10
+Pillow>=10.4.0
+PyMuPDF==1.23.26
+python-docx==0.8.11
+docx2python==2.8.0
+lxml==5.3.0
+openpyxl==3.1.2
+xlrd==2.0.1
+python-pptx==0.6.23
+odfpy==1.4.1
+opencv-python-headless>=4.8.0
+tiktoken==0.5.2
+langchain-text-splitters==0.0.1
+pytest==8.3.3
+httpx<0.28
