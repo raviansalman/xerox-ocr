@@ -1348,7 +1348,7 @@ class UltimateVectorIntegration:
 
         Args:
             file_id: The file ID to delete (required)
-            user_id: Optional user_id for tenant isolation
+            user_id: Owning tenant (required; deletes never cross tenants)
             bucket_id: Optional bucket_id filter
             path: Optional path filter
             connection_id: Optional connection_id filter (same as ingest)
@@ -1356,6 +1356,8 @@ class UltimateVectorIntegration:
         Returns:
             Dict with success status and deleted count
         """
+        if not user_id or not str(user_id).strip():
+            raise ValueError("user_id is required to delete a document")
         try:
             def _delete_round(
                 bkt: Optional[str], pth: Optional[str], conn: Optional[str]
@@ -1390,16 +1392,6 @@ class UltimateVectorIntegration:
             )
             total_chunks = doc_chunks + img_chunks
 
-            # Strict bucket/path/connection filters often block deletes when UI sends values that
-            # were not stored on chunks (or differ). Retry once without those filters.
-            if total_chunks == 0 and (bucket_id or path or connection_id):
-                logger.info(
-                    "[DELETE] No rows with bucket_id/path/connection_id filters; retrying without those filters"
-                )
-                doc_r, img_r, doc_chunks, doc_files, img_chunks, img_files = _delete_round(
-                    None, None, None
-                )
-                total_chunks = doc_chunks + img_chunks
             merged_ids = set(doc_r.get("distinct_file_ids") or [])
             merged_ids.update(img_r.get("distinct_file_ids") or [])
             if merged_ids:

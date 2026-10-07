@@ -2,6 +2,8 @@
 import pytest
 from fastapi.testclient import TestClient
 
+from tests.support.auth import headers
+
 
 @pytest.fixture(scope="module")
 def client():
@@ -27,32 +29,29 @@ MB = 1024 * 1024
     ("unknown.bin", "", 1 * MB, "ultimate_ocr"),
 ])
 def test_queue_routing_table(client, filename, file_type, size, queue):
-    r = client.post("/admin/route-test", json={"filename": filename, "file_type": file_type, "size_bytes": size})
+    r = client.post("/admin/route-test", json={"filename": filename, "file_type": file_type, "size_bytes": size},
+                    headers=headers("admin"))
     assert r.status_code == 200
     assert r.json()["queue"] == queue
 
 
 def test_search_requires_user_id(client):
-    r = client.post("/search", json={"query": "press release"})
+    r = client.post("/search", json={"query": "press release"}, headers=headers("service"))
     assert r.status_code == 400 and r.json()["detail"] == "userId or user_id is required"
 
 
 def test_search_rejects_empty_query(client):
-    r = client.post("/search", json={"userId": "alice", "query": ""})
+    r = client.post("/search", json={"userId": "alice", "query": ""}, headers=headers("service"))
     assert r.status_code == 400 and r.json()["detail"] == "query is required"
 
 
-@pytest.mark.known_defect
-@pytest.mark.xfail(strict=True, reason="KD-API-01: HTTPException(400) is caught by a broad except and re-raised as 500")
 def test_process_without_file_url_is_a_client_error(client):
-    r = client.post("/process", json={"userId": "alice", "fileId": "f1"})
+    r = client.post("/process", json={"userId": "alice", "fileId": "f1"}, headers=headers("service"))
     assert r.status_code == 400
 
 
-@pytest.mark.known_defect
-@pytest.mark.xfail(strict=True, reason="KD-API-01: error responses include a full server traceback")
 def test_process_errors_do_not_leak_tracebacks(client):
-    r = client.post("/process", json={"userId": "alice", "fileId": "f1"})
+    r = client.post("/process", json={"userId": "alice", "fileId": "f1"}, headers=headers("service"))
     assert "Traceback" not in r.text
 
 
@@ -63,10 +62,18 @@ def test_health_does_not_claim_unchecked_dependencies(client):
     assert services["celery"] != "healthy"  # no worker exists in the unit-test environment
 
 
-@pytest.mark.known_defect
-@pytest.mark.xfail(strict=True, reason="KD-SEC-06: search result text is inserted into innerHTML unescaped")
 def test_ui_escapes_result_text():
     import ultimate_ui
 
     html = ultimate_ui.create_html_ui()
     assert "${tx.substring(0, 200)}" not in html
+
+
+def test_ui_escapes_document_derived_fields():
+    import ultimate_ui
+
+    html = ultimate_ui.create_html_ui()
+    for raw in ("${file.filename}", "${file.image_caption}", "deleteFile('${file.file_id}')",
+                "' + error.message + '", "${textContent.substring(0, 200)}"):
+        assert raw not in html
+    assert "function escHtml" in html and "X-API-Key" in html

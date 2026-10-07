@@ -12,6 +12,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from tests.support import documents
+from tests.support.auth import headers
 
 pytestmark = pytest.mark.integration
 
@@ -62,8 +63,11 @@ def env(tmp_path_factory):
             utility.drop_collection(c)
 
 
-def search(env, query, user="alice", **extra):
-    r = env["client"].post("/search", json={"userId": user, "query": query, "limit": 10, **extra})
+def search(env, query, user="alice", key="service", **extra):
+    body = {"query": query, "limit": 10, **extra}
+    if user is not None:
+        body["userId"] = user
+    r = env["client"].post("/search", json=body, headers=headers(key))
     assert r.status_code == 200, r.text
     return [x["file_id"] for x in r.json()["results"]]
 
@@ -103,11 +107,22 @@ def test_user_id_with_quote_still_finds_own_documents(env):
     path.write_text("Quarterly toner audit for the OBrien account.\n", encoding="utf-8")
     _ingest(env["task"], path, "quoted_doc", 'o"brien', "text/plain")
     env["vi"].vector_db.collection.flush()
-    assert search(env, "toner audit", user='o"brien') == ["quoted_doc"]
+    hits = env["vi"].search_documents(query="toner audit", user_id='o"brien', limit=10)
+    assert [h.file_id for h in hits] == ["quoted_doc"]
 
 
 def test_crafted_user_id_cannot_read_other_tenants(env):
-    assert "bob_release" not in search(env, "FOR IMMEDIATE RELEASE", user='alice" or user_id != "alice')
+    r = env["client"].post("/search", headers=headers("service"),
+                           json={"userId": 'alice" or user_id != "alice', "query": "FOR IMMEDIATE RELEASE"})
+    assert r.status_code == 400
+    # Below the API the expression is escaped too (KD-SEC-01).
+    hits = env["vi"].search_documents(query="FOR IMMEDIATE RELEASE", user_id='alice" or user_id != "alice', limit=10)
+    assert hits == []
+
+
+def test_tenant_key_searches_only_its_own_tenant(env):
+    assert search(env, "FOR IMMEDIATE RELEASE", user=None, key="alice_reader")[0] == "press_release"
+    assert search(env, "FOR IMMEDIATE RELEASE", user=None, key="bob_reader") == ["bob_release"]
 
 
 @pytest.mark.known_defect
@@ -147,16 +162,22 @@ def test_reingest_replaces_previous_chunks(env):
 
 
 # Destructive checks last (pytest runs tests in file order).
-@pytest.mark.known_defect
-@pytest.mark.xfail(strict=True, reason="KD-SEC-03: admin purge works without credentials when VECTOR_STATS_ADMIN_KEY is unset")
 def test_admin_purge_requires_credentials(env):
-    r = env["client"].post("/admin/purge-user-vectors",
-                           json={"user_id": "nobody", "confirm": "purge-all-vectors-for-user"})
-    assert r.status_code in (401, 403)
+    body = {"user_id": "bob", "confirm": "purge-all-vectors-for-user"}
+    assert env["client"].post("/admin/purge-user-vectors", json=body).status_code == 401
+    assert env["client"].post("/admin/purge-user-vectors", json=body, headers=headers("service")).status_code == 403
+    assert search(env, "FOR IMMEDIATE RELEASE", user="bob") == ["bob_release"]
 
 
-@pytest.mark.known_defect
-@pytest.mark.xfail(strict=True, reason="KD-SEC-02: delete-document accepts a bare file_id and deletes across tenants")
 def test_delete_requires_owner(env):
-    r = env["client"].post("/delete-document", json={"file_id": "bob_release"})
-    assert r.status_code in (400, 401, 403)
+    assert env["client"].post("/delete-document", json={"file_id": "bob_release"}).status_code == 401
+    # Alice's key can only delete inside tenant alice: Bob's file is simply not found there.
+    r = env["client"].post("/delete-document", json={"file_id": "bob_release"}, headers=headers("alice_uploader"))
+    assert r.status_code == 404
+    assert search(env, "FOR IMMEDIATE RELEASE", user="bob") == ["bob_release"]
+
+
+def test_owner_can_delete_own_document(env):
+    r = env["client"].post("/delete-document", json={"file_id": "memo"}, headers=headers("alice_uploader"))
+    assert r.status_code == 200 and r.json()["chunks_deleted"] >= 1
+    assert "memo" not in search(env, "printer maintenance", user="alice")

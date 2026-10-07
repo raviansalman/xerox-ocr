@@ -74,6 +74,11 @@ def pytest_configure(config):
     os.environ.setdefault("ENABLE_QUERY_NER", "0")
     os.environ.setdefault("SKIP_IMAGE_CAPTIONING_IN_PROCESSOR", "true")
     os.environ.setdefault("SENTENCE_TRANSFORMERS_HOME", str(ULTIMATE_DIR / ".pytest_cache" / "st"))
+    from tests.support.auth import api_keys_json
+
+    os.environ["API_KEYS"] = api_keys_json()
+    os.environ.pop("API_KEYS_FILE", None)
+    os.environ.pop("AUTH_DISABLED", None)
 
     if RUN_INTEGRATION:
         port = int(os.getenv("XOCR_TEST_EMBEDDER_PORT", "18080"))

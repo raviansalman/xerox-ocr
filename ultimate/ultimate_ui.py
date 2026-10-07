@@ -663,6 +663,11 @@ def create_html_ui():
             <div class="header">
                 <h1>Document Processing System</h1>
                 <p>Advanced OCR and Text Extraction Platform</p>
+                <div class="api-key-bar" style="margin-top:12px;">
+                    <input type="password" id="apiKeyInput" placeholder="API key" autocomplete="off" style="padding:6px;width:280px;">
+                    <button type="button" onclick="saveApiKey()">Use key</button>
+                    <span id="apiKeyState" style="margin-left:8px;font-size:13px;"></span>
+                </div>
             </div>
 
             <div class="content">
@@ -867,7 +872,7 @@ def create_html_ui():
                             <h3>Load all vectors (summary)</h3>
                             <p style="font-size: 0.85em; color: #666; margin: 0 0 4px 0;">API: <code>GET /admin/vector-storage-by-user</code></p>
                             <p style="font-size: 0.9em; color: #555; margin: 0 0 8px 0;">
-                                Scans Milvus (up to <strong>max rows</strong>) and shows <strong>chunk</strong> and <strong>file</strong> counts per <strong>user ID</strong>. Optional <code>X-Admin-Key</code> if <code>VECTOR_STATS_ADMIN_KEY</code> is set.
+                                Scans Milvus (up to <strong>max rows</strong>) and shows <strong>chunk</strong> and <strong>file</strong> counts per <strong>user ID</strong>. Requires an admin API key.
                             </p>
                             <div class="api-form">
                                 <input type="number" id="vectorStatsMaxRows" class="url-input" placeholder="Max rows to scan (default 50000)" min="1000" max="2000000" value="50000" style="max-width: 220px;">
@@ -922,6 +927,41 @@ def create_html_ui():
             }
             
             let processedFiles = {};
+
+            /** Escape any server or document text before it goes into innerHTML. */
+            function escHtml(v) {
+                return String(v === undefined || v === null ? '' : v).replace(/[&<>"']/g, function (c) {
+                    return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c];
+                });
+            }
+
+            /** Every API call is authenticated: send the key held in this tab's sessionStorage. */
+            const API_KEY_STORE = 'xocr_api_key';
+            function getApiKey() {
+                try { return sessionStorage.getItem(API_KEY_STORE) || ''; } catch (e) { return ''; }
+            }
+            function showKeyState() {
+                const el = document.getElementById('apiKeyState');
+                if (el) el.textContent = getApiKey() ? 'Key set for this tab' : 'No API key set';
+            }
+            function saveApiKey() {
+                const input = document.getElementById('apiKeyInput');
+                try { sessionStorage.setItem(API_KEY_STORE, input.value.trim()); } catch (e) {}
+                input.value = '';
+                showKeyState();
+            }
+            const _origFetch = window.fetch.bind(window);
+            window.fetch = function (resource, init) {
+                init = init || {};
+                const key = getApiKey();
+                if (key) {
+                    const headers = new Headers(init.headers || {});
+                    headers.set('X-API-Key', key);
+                    init.headers = headers;
+                }
+                return _origFetch(resource, init);
+            };
+            showKeyState();
 
             /** FastAPI errors: detail may be string or { message, hint, ... } */
             function formatApiDetail(payload) {
@@ -983,7 +1023,7 @@ def create_html_ui():
                     let objectInfo = '';
                     if (file.objects_detected && file.objects_detected.length > 0) {
                         const objects = file.objects_detected.map(obj => 
-                            `${obj.class} (${(obj.confidence * 100).toFixed(1)}%)`
+                            `${escHtml(obj.class)} (${(obj.confidence * 100).toFixed(1)}%)`
                         ).join(', ');
                         objectInfo = `<div class="object-info">Objects: ${objects}</div>`;
                     }
@@ -991,20 +1031,20 @@ def create_html_ui():
                     // Build image caption info
                     let captionInfo = '';
                     if (file.image_caption) {
-                        captionInfo = `<div class="caption-info">Description: ${file.image_caption}</div>`;
+                        captionInfo = `<div class="caption-info">Description: ${escHtml(file.image_caption)}</div>`;
                     }
                     
                     // Build visual elements info
                     let visualInfo = '';
                     if (file.visual_elements && file.visual_elements.length > 0) {
-                        visualInfo = `<div class="visual-info">Elements: ${file.visual_elements.join(', ')}</div>`;
+                        visualInfo = `<div class="visual-info">Elements: ${escHtml(file.visual_elements.join(', '))}</div>`;
                     }
                     
                     html += `
                         <div class="file-card">
                             <div class="file-header">
-                                <span class="file-name">${file.filename}</span>
-                                <span class="file-type">${file.file_type}</span>
+                                <span class="file-name">${escHtml(file.filename)}</span>
+                                <span class="file-type">${escHtml(file.file_type)}</span>
                             </div>
                             <div class="file-info">
                                 <div>Size: ${(file.file_size / 1024).toFixed(1)} KB</div>
@@ -1015,7 +1055,7 @@ def create_html_ui():
                                 ${captionInfo}
                                 ${visualInfo}
                             </div>
-                            <button class="delete-btn" onclick="deleteFile('${file.file_id}')">Delete vectors for this file</button>
+                            <button class="delete-btn" onclick="deleteFile(${escHtml(JSON.stringify(String(file.file_id)))})">Delete vectors for this file</button>
                         </div>
                     `;
                 });
@@ -1193,11 +1233,11 @@ def create_html_ui():
                         // Direct results (shouldn't happen with current API)
                         displayProcessingResults(data, apiStatus);
                     } else {
-                        apiStatus.innerHTML = '<div class="status error">API Processing failed: ' + (data.detail || 'Unknown error') + '</div>';
+                        apiStatus.innerHTML = '<div class="status error">API Processing failed: ' + escHtml(formatApiDetail(data)) + '</div>';
                     }
                 })
                 .catch(error => {
-                    apiStatus.innerHTML = '<div class="status error">API Processing failed: ' + error.message + '</div>';
+                    apiStatus.innerHTML = '<div class="status error">API Processing failed: ' + escHtml(error.message) + '</div>';
                 });
             }
 
@@ -1261,11 +1301,11 @@ def create_html_ui():
                     } else if (data.success) {
                         displayProcessingResults(data, statusElement);
                     } else {
-                        statusElement.innerHTML = '<div class="status error">❌ Upload failed: ' + (data.detail || 'Unknown error') + '</div>';
+                        statusElement.innerHTML = '<div class="status error">❌ Upload failed: ' + escHtml(formatApiDetail(data)) + '</div>';
                     }
                 })
                 .catch(error => {
-                    statusElement.innerHTML = '<div class="status error">❌ Upload failed: ' + error.message + '</div>';
+                    statusElement.innerHTML = '<div class="status error">❌ Upload failed: ' + escHtml(error.message) + '</div>';
                 });
             }
 
@@ -1374,7 +1414,7 @@ def create_html_ui():
                         const statusMsg = data.status_message || data.message || data.status || 'Processing...';
                         
                         // Update status display immediately to show processing stage
-                        statusElement.innerHTML = '<div class="status info">🔄 ' + statusMsg + ' (' + progress + '%)</div>';
+                        statusElement.innerHTML = '<div class="status info">🔄 ' + escHtml(statusMsg) + ' (' + escHtml(progress) + '%)</div>';
                         
                         if (taskState === 'SUCCESS' || taskStatus === 'completed' || taskStatus === 'COMPLETED' || progress >= 100) {
                             // Task completed successfully, display results
@@ -1384,11 +1424,11 @@ def create_html_ui():
                                 statusElement.innerHTML = '<div class="status success">✅ Processing completed successfully!</div>';
                             }
                         } else if (taskState === 'FAILURE' || taskStatus === 'failed' || taskStatus === 'FAILED') {
-                            statusElement.innerHTML = '<div class="status error">❌ Processing failed: ' + (data.message || data.error || data.status_message || 'Unknown error') + '</div>';
+                            statusElement.innerHTML = '<div class="status error">❌ Processing failed: ' + escHtml(data.message || data.error || data.status_message || 'Unknown error') + '</div>';
                         } else if (pollCount >= maxPolls) {
                             // Max polls reached - task still processing
                             const statusMsg = data.status_message || data.message || data.status || 'Processing...';
-                            statusElement.innerHTML = '<div class="status info">🔄 ' + statusMsg + ' (' + progress + '%) - Task still processing in background. Check back later or refresh page.</div>';
+                            statusElement.innerHTML = '<div class="status info">🔄 ' + escHtml(statusMsg) + ' (' + escHtml(progress) + '%) - Task still processing in background. Check back later or refresh page.</div>';
                         } else {
                             // Still processing - poll again after 5 seconds
                             setTimeout(pollTaskStatus, pollInterval);
@@ -1400,7 +1440,7 @@ def create_html_ui():
                             // Retry on error after 5 seconds
                             setTimeout(pollTaskStatus, pollInterval);
                         } else {
-                        statusElement.innerHTML = '<div class="status error">❌ Error checking task status: ' + error.message + '</div>';
+                        statusElement.innerHTML = '<div class="status error">❌ Error checking task status: ' + escHtml(error.message) + '</div>';
                         }
                     });
                 }
@@ -1430,15 +1470,15 @@ def create_html_ui():
                                 <h4>Processing Results:</h4>
                                 <div class="api-result-item">
                                     <div class="api-result-header">
-                                <span class="api-result-id">File ID: ${fileId}</span>
+                                <span class="api-result-id">File ID: ${escHtml(fileId)}</span>
                                 <span class="api-result-confidence">${confidence.toFixed(1)}%</span>
                                     </div>
                             <div><strong>Processing Time:</strong> ${processingTime.toFixed(2)}s</div>
                             <div><strong>Text Length:</strong> ${textLength} characters</div>
                             <div><strong>Keywords:</strong> ${keywords.length} extracted</div>
                             <div><strong>Objects:</strong> ${objectsDetected.length} detected</div>
-                            <div><strong>Extraction Method:</strong> ${extractionMethod}</div>
-                            ${textContent ? `<div class="api-result-context">${textContent.substring(0, 200)}${textContent.length > 200 ? '...' : ''}</div>` : '<div class="api-result-context">Text extracted successfully (content not shown in summary)</div>'}
+                            <div><strong>Extraction Method:</strong> ${escHtml(extractionMethod)}</div>
+                            ${textContent ? `<div class="api-result-context">${escHtml(textContent.substring(0, 200))}${textContent.length > 200 ? '...' : ''}</div>` : '<div class="api-result-context">Text extracted successfully (content not shown in summary)</div>'}
                                 </div>
                             </div>
                         `;
@@ -1556,7 +1596,7 @@ def create_html_ui():
                         results.forEach((result, index) => {
                             const filename = result.metadata?.filename || result.file_id || 'Unknown File';
                             const confidence = result.similarity_score || result.confidence || 0;
-                            const escFid = String(result.file_id || '').replace(/</g, '&lt;').replace(/&/g, '&amp;');
+                            const escFid = escHtml(result.file_id || '');
                             const tx = (result.text || '');
                             
                                 resultsHtml += `
@@ -1565,10 +1605,10 @@ def create_html_ui():
                                         <span class="api-result-id" title="Milvus file_id — use for delete">${escFid}</span>
                                         <span class="api-result-confidence">${(confidence * 100).toFixed(1)}%</span>
                                         </div>
-                                    <div><strong>Filename:</strong> ${String(filename).replace(/</g, '&lt;').replace(/&/g, '&amp;')}</div>
+                                    <div><strong>Filename:</strong> ${escHtml(filename)}</div>
                                     <div style="font-size:12px;color:#555;margin:4px 0 0 0;">Bold line above is the id stored in Milvus; the .pdf name alone may not delete.</div>
-                                    <div><strong>Text:</strong> ${tx.substring(0, 200)}${tx.length > 200 ? '...' : ''}</div>
-                                    <div><strong>Method:</strong> ${result.extraction_method || result.search_method || 'vector_search'}</div>
+                                    <div><strong>Text:</strong> ${escHtml(tx.substring(0, 200))}${tx.length > 200 ? '...' : ''}</div>
+                                    <div><strong>Method:</strong> ${escHtml(result.extraction_method || result.search_method || 'vector_search')}</div>
                                     <button type="button" class="url-btn" style="margin-top:8px;font-size:12px;padding:6px 12px;background:#c0392b;" onclick="fillDeleteFromSearchResult(${index})">Fill delete form — this file + user</button>
                                     </div>
                                 `;
@@ -1579,7 +1619,7 @@ def create_html_ui():
                         apiStatus.innerHTML = resultsHtml;
                 })
                 .catch(error => {
-                    apiStatus.innerHTML = '<div class="status error">API Search failed: ' + error.message + '</div>';
+                    apiStatus.innerHTML = '<div class="status error">API Search failed: ' + escHtml(error.message) + '</div>';
                 });
             }
 
@@ -1608,7 +1648,7 @@ def create_html_ui():
                     statusElement.innerHTML = healthHtml;
                 })
                 .catch(error => {
-                    statusElement.innerHTML = '<div class="status error">Health check failed: ' + error.message + '</div>';
+                    statusElement.innerHTML = '<div class="status error">Health check failed: ' + escHtml(error.message) + '</div>';
                 });
             }
 
@@ -1635,7 +1675,7 @@ def create_html_ui():
                     statusElement.innerHTML = collectionsHtml;
                 })
                 .catch(error => {
-                    statusElement.innerHTML = '<div class="status error">Failed to fetch collections: ' + error.message + '</div>';
+                    statusElement.innerHTML = '<div class="status error">Failed to fetch collections: ' + escHtml(error.message) + '</div>';
                 });
             }
 
@@ -1648,12 +1688,12 @@ def create_html_ui():
                     .then(data => {
                         let html = '<div class="status success">Stuck jobs retrieved.</div>';
                         html += '<pre style="margin-top:10px; max-height:300px; overflow:auto; background:#f5f5f5; padding:10px; border-radius:6px;">';
-                        html += JSON.stringify(data, null, 2);
+                        html += escHtml(JSON.stringify(data, null, 2));
                         html += '</pre>';
                         statusElement.innerHTML = html;
                     })
                     .catch(error => {
-                        statusElement.innerHTML = '<div class="status error">Failed to fetch stuck jobs: ' + error.message + '</div>';
+                        statusElement.innerHTML = '<div class="status error">Failed to fetch stuck jobs: ' + escHtml(error.message) + '</div>';
                     });
             }
 
@@ -1666,12 +1706,12 @@ def create_html_ui():
                     .then(data => {
                         let html = '<div class="status success">Queue configuration retrieved.</div>';
                         html += '<pre style="margin-top:10px; max-height:300px; overflow:auto; background:#f5f5f5; padding:10px; border-radius:6px;">';
-                        html += JSON.stringify(data, null, 2);
+                        html += escHtml(JSON.stringify(data, null, 2));
                         html += '</pre>';
                         statusElement.innerHTML = html;
                     })
                     .catch(error => {
-                        statusElement.innerHTML = '<div class="status error">Failed to fetch queue configuration: ' + error.message + '</div>';
+                        statusElement.innerHTML = '<div class="status error">Failed to fetch queue configuration: ' + escHtml(error.message) + '</div>';
                     });
             }
 
@@ -1836,12 +1876,12 @@ def create_html_ui():
                     .then(data => {
                         let html = '<div class="status success">Routing decision:</div>';
                         html += '<pre style="margin-top:10px; max-height:300px; overflow:auto; background:#f5f5f5; padding:10px; border-radius:6px;">';
-                        html += JSON.stringify(data, null, 2);
+                        html += escHtml(JSON.stringify(data, null, 2));
                         html += '</pre>';
                         statusElement.innerHTML = html;
                     })
                     .catch(error => {
-                        statusElement.innerHTML = '<div class="status error">Routing test failed: ' + error.message + '</div>';
+                        statusElement.innerHTML = '<div class="status error">Routing test failed: ' + escHtml(error.message) + '</div>';
                     });
             }
 
@@ -1857,22 +1897,47 @@ def create_html_ui():
 def create_fastapi_app():
     """Create FastAPI app with document processing integration."""
     try:
-        from fastapi import FastAPI, File, UploadFile, HTTPException, Form, Request, Query, Header
+        from fastapi import FastAPI, File, UploadFile, HTTPException, Form, Request, Query, Header, Depends
         from fastapi.responses import HTMLResponse, JSONResponse
         from fastapi.middleware.cors import CORSMiddleware
         import tempfile
         import shutil
-        
+        from src.security import AuthError, Principal, authenticate, require_role, resolve_tenant
+
         app = FastAPI(title="Ultimate Document Processor", version="1.0.0")
-        
-        # Add CORS middleware
-        app.add_middleware(
-            CORSMiddleware,
-            allow_origins=["*"],
-            allow_credentials=True,
-            allow_methods=["*"],
-            allow_headers=["*"],
-        )
+
+        # CORS: the bundled UI is same-origin, so cross-origin access is off unless allowlisted.
+        _cors_origins = [o.strip() for o in os.getenv("CORS_ALLOW_ORIGINS", "").split(",") if o.strip()]
+        if _cors_origins:
+            app.add_middleware(
+                CORSMiddleware,
+                allow_origins=_cors_origins,
+                allow_credentials="*" not in _cors_origins,
+                allow_methods=["*"],
+                allow_headers=["*"],
+            )
+
+        def _auth_http(e: AuthError) -> HTTPException:
+            headers = {"WWW-Authenticate": "Bearer"} if e.status_code == 401 else None
+            return HTTPException(status_code=e.status_code, detail=e.detail, headers=headers)
+
+        def principal_dep(request: Request) -> Principal:
+            try:
+                return authenticate(request.headers)
+            except AuthError as e:
+                raise _auth_http(e)
+
+        def _require(principal: Principal, role: str) -> None:
+            try:
+                require_role(principal, role)
+            except AuthError as e:
+                raise _auth_http(e)
+
+        def _tenant(principal: Principal, requested, missing_detail: str = "userId is required") -> str:
+            try:
+                return resolve_tenant(principal, requested, missing_detail)
+            except AuthError as e:
+                raise _auth_http(e)
         
         # Initialize processor (lightweight); vector integration and semantic
         # pipeline are now initialized lazily on first use to keep the API
@@ -2066,8 +2131,10 @@ def create_fastapi_app():
                 return 0
 
         @app.get("/admin/jobs/{user_id}")
-        async def list_user_jobs(user_id: str):
+        async def list_user_jobs(user_id: str, principal: Principal = Depends(principal_dep)):
             """Returns the list of jobs and their statuses for a specific user."""
+            if not (principal.has("admin") or principal.tenant == user_id):
+                raise HTTPException(status_code=403, detail="Not allowed to list jobs for this user")
             try:
                 from src.job_registry import get_job_registry
                 reg = get_job_registry()
@@ -2076,24 +2143,27 @@ def create_fastapi_app():
                     
                 jobs = reg.list_jobs(user_id)
                 return {"user_id": user_id, "jobs": jobs}
+            except HTTPException:
+                raise
             except Exception as e:
                 logger.error(f"Failed to list jobs for user {user_id}: {e}", exc_info=True)
                 raise HTTPException(status_code=500, detail=str(e))
 
         @app.post("/process")
-        async def process_document_api(request: dict):
+        async def process_document_api(request: dict, principal: Principal = Depends(principal_dep)):
             """
             Process document from URL: route by type/size, enqueue to the same Celery queues as /process-file.
             All routing is done here—spreadsheet→ultimate_spreadsheet, pdf→ultimate_pdf,
             image→ultimate_image, word→ultimate_word, powerpoint→ultimate_powerpoint,
             other/OCR→ultimate_ocr. Large files go to *_large queues. Same implementation as /process-file.
             """
+            _require(principal, "uploader")
+            user_id = _tenant(principal, request.get("userId"))
             try:
                 if not VECTOR_INTEGRATION_AVAILABLE:
                     raise HTTPException(status_code=500, detail="Background processing not available")
 
                 image_url = request.get("fileUrl")
-                user_id = request.get("userId", "user000")  # Default to user000
                 file_id = request.get("fileId") or None  # Convert empty string to None
                 file_type = request.get("fileType") or None  # Convert empty string to None
 
@@ -2110,17 +2180,7 @@ def create_fastapi_app():
                 if not file_id or (isinstance(file_id, str) and not file_id.strip()):
                     raise HTTPException(status_code=400, detail="fileId is required and cannot be empty")
                 
-                # Default user_id to user000 if not provided
-                if not user_id:
-                    user_id = "user000"
-                    logger.info(f"Using default user_id: {user_id}")
-                
-                # Convert ObjectId to string if needed
-                if hasattr(user_id, 'str'):
-                    user_id = str(user_id)
-                elif hasattr(user_id, '__str__'):
-                    user_id = str(user_id)
-                
+                # user_id comes from the authenticated principal (see _tenant above)
                 if hasattr(file_id, 'str'):
                     file_id = str(file_id)
                 elif hasattr(file_id, '__str__'):
@@ -2318,22 +2378,22 @@ def create_fastapi_app():
                     "visual_elements": []
                 }
                 
-            except Exception as e:
-                import traceback
-                error_details = traceback.format_exc()
-                logger.error(f"API processing failed: {str(e)}")
-                logger.error(f"Full traceback: {error_details}")
-                raise HTTPException(status_code=500, detail=f"Proceszsing failed: {str(e)} - {error_details}")
+            except HTTPException:
+                raise
+            except Exception:
+                logger.exception("API processing failed")
+                raise HTTPException(status_code=500, detail="Processing failed; see server logs")
         
         @app.post("/process-file")
         async def process_file_upload(
             file: UploadFile = File(...),
             fileId: str = Form(None),
-            userId: str = Form("user000"),  # Default to user000
+            userId: Optional[str] = Form(None),
             fileType: str = Form(None),
             bucketId: Optional[str] = Form(None),  # Allow None but preserve actual values
             path: Optional[str] = Form(None),  # Allow None but preserve actual values
             connectionId: Optional[str] = Form(None),
+            principal: Principal = Depends(principal_dep),
         ):
             """
             Process uploaded file: save, route by type/size, enqueue to the right Celery queue.
@@ -2342,20 +2402,11 @@ def create_fastapi_app():
             other/OCR→ultimate_ocr. Large files go to *_large queues. Clients just POST;
             the API distributes work so the system scales without hanging.
             """
+            _require(principal, "uploader")
+            userId = _tenant(principal, userId)
             try:
                 if not VECTOR_INTEGRATION_AVAILABLE:
                     raise HTTPException(status_code=500, detail="Background processing not available")
-                
-                # Convert ObjectId to string if needed
-                if hasattr(userId, 'str'):
-                    userId = str(userId)
-                elif hasattr(userId, '__str__'):
-                    userId = str(userId)
-                
-                # Default user_id to user000 if not provided
-                if not userId or (isinstance(userId, str) and not userId.strip()):
-                    userId = "user000"
-                    logger.info(f"Using default user_id: {userId}")
                 
                 # Strict rule: fileId must be provided and non-empty; never auto-generate.
                 if fileId and isinstance(fileId, str):
@@ -2547,13 +2598,22 @@ def create_fastapi_app():
                     "visual_elements": []
                 }
                 
-            except Exception as e:
-                logger.error(f"Error in process_file_upload: {e}")
-                raise HTTPException(status_code=500, detail=str(e))
+            except HTTPException:
+                raise
+            except Exception:
+                logger.exception("Error in process_file_upload")
+                raise HTTPException(status_code=500, detail="Upload processing failed; see server logs")
         
         @app.get("/task-status/{task_id}")
-        async def get_task_status(task_id: str, user_id: str = None):
+        async def get_task_status(task_id: str, user_id: str = None, principal: Principal = Depends(principal_dep)):
             """Get status of a background processing task. Supports Celery task_id (UUID) or file_id."""
+            _require(principal, "reader")
+            if principal.tenant:
+                scope_uid = _tenant(principal, user_id)
+            elif user_id:
+                scope_uid = _tenant(principal, user_id)
+            else:
+                scope_uid = None  # service/admin key without a userId: Celery task ids only
             try:
                 if not VECTOR_INTEGRATION_AVAILABLE:
                     raise HTTPException(status_code=500, detail="Task status not available")
@@ -2565,8 +2625,7 @@ def create_fastapi_app():
                 if not re.match(uuid_pattern, task_id):
                     from src.job_registry import get_job_registry
                     reg = get_job_registry()
-                    uids_to_try = ([user_id] if user_id else []) + ["user000", "user001", "load_user_1", "load_user_2", "load_user_3", "load_user_4", "load_user_5"]
-                    uids_to_try = [u for u in uids_to_try if u][:10]
+                    uids_to_try = [scope_uid] if scope_uid else []
                     if reg:
                         for uid in uids_to_try:
                             job = reg.get_job(uid, task_id)
@@ -2584,6 +2643,13 @@ def create_fastapi_app():
                                     }
                                 elif celery_task_id != task_id:
                                     break
+
+                if not principal.has("service"):
+                    from src.job_registry import get_job_registry
+                    _owner_reg = get_job_registry()
+                    _owner = _owner_reg.task_owner(celery_task_id) if _owner_reg else None
+                    if _owner != principal.tenant:
+                        raise HTTPException(status_code=404, detail="Task not found")
 
                 from src.ultimate_celery_app import celery_app
                 task = celery_app.AsyncResult(celery_task_id)
@@ -2672,12 +2738,14 @@ def create_fastapi_app():
                 
                 return response
                 
-            except Exception as e:
-                logger.error(f"Task status API failed: {e}")
-                raise HTTPException(status_code=500, detail=f"Task status failed: {e}")
+            except HTTPException:
+                raise
+            except Exception:
+                logger.exception("Task status API failed")
+                raise HTTPException(status_code=500, detail="Task status failed; see server logs")
 
         @app.get("/admin/stuck-jobs")
-        async def get_stuck_jobs():
+        async def get_stuck_jobs(principal: Principal = Depends(principal_dep)):
             """
             Return list of tasks that appear stuck based on heartbeat data.
 
@@ -2685,6 +2753,7 @@ def create_fastapi_app():
             vector/semantic behavior. It simply surfaces the output of
             src.scalability_utils.detect_stuck_jobs() for monitoring.
             """
+            _require(principal, "admin")
             try:
                 from src.scalability_utils import detect_stuck_jobs
                 jobs = detect_stuck_jobs()
@@ -2701,12 +2770,13 @@ def create_fastapi_app():
                 raise HTTPException(status_code=500, detail=f"Failed to retrieve stuck jobs: {e}")
 
         @app.get("/admin/queues")
-        async def get_queue_config():
+        async def get_queue_config(principal: Principal = Depends(principal_dep)):
             """
             Return the current queue configuration for all file categories.
 
             This is a read-only view of how the routing engine is configured.
             """
+            _require(principal, "admin")
             try:
                 # Base queues
                 base_default = CELERY_DEFAULT_QUEUE
@@ -2762,17 +2832,15 @@ def create_fastapi_app():
                 default=None,
                 description="If set, only scan rows for this user_id (accurate stats for that tenant)",
             ),
-            x_admin_key: Optional[str] = Header(default=None, alias="X-Admin-Key"),
+            principal: Principal = Depends(principal_dep),
         ):
             """
             UI label: **Load all vectors (summary)** — per-user file and chunk counts in document
             and image Milvus collections. Scan is bounded by max_rows.
 
-            Optional auth: VECTOR_STATS_ADMIN_KEY + matching X-Admin-Key header.
+            Requires an admin API key.
             """
-            _key = (os.getenv("VECTOR_STATS_ADMIN_KEY") or "").strip()
-            if _key and (x_admin_key or "").strip() != _key:
-                raise HTTPException(status_code=403, detail="Invalid or missing X-Admin-Key")
+            _require(principal, "admin")
             try:
                 vi = ui_processor.get_vector_integration()
                 if not vi:
@@ -2801,23 +2869,21 @@ def create_fastapi_app():
         @app.post("/admin/purge-user-vectors")
         async def admin_purge_user_vectors(
             payload: dict,
-            x_admin_key: Optional[str] = Header(default=None, alias="X-Admin-Key"),
+            principal: Principal = Depends(principal_dep),
         ):
             """
             Admin purge: removes Milvus rows (document + image collections) for user_id.
             Omit bucket_id and connectionId to wipe all S3 connections for that user. Set either or both
             to match ingest and narrow the purge (both filter as AND when both are set).
             For one file, use /delete-document.
-            Same X-Admin-Key as GET /admin/vector-storage-by-user when VECTOR_STATS_ADMIN_KEY is set.
+            Requires an admin API key.
 
             Body JSON (connectionId preferred; connection_id accepted too):
               { "user_id": "...", "confirm": "purge-all-vectors-for-user",
                 "bucket_id": "optional — same as ingest",
                 "connectionId": "optional — same as POST /process" }
             """
-            _key = (os.getenv("VECTOR_STATS_ADMIN_KEY") or "").strip()
-            if _key and (x_admin_key or "").strip() != _key:
-                raise HTTPException(status_code=403, detail="Invalid or missing X-Admin-Key")
+            _require(principal, "admin")
             uid = str(payload.get("user_id") or payload.get("userId") or "").strip()
             if not uid:
                 raise HTTPException(status_code=400, detail="user_id required")
@@ -2855,7 +2921,7 @@ def create_fastapi_app():
                 raise HTTPException(status_code=500, detail=str(e))
 
         @app.post("/admin/route-test")
-        async def route_test(payload: dict):
+        async def route_test(payload: dict, principal: Principal = Depends(principal_dep)):
             """
             Test the routing engine without actually enqueuing a task.
 
@@ -2864,6 +2930,7 @@ def create_fastapi_app():
               - filename
               - size_bytes (or file_size_bytes)
             """
+            _require(principal, "admin")
             try:
                 file_type = payload.get("file_type") or payload.get("fileType") or ""
                 filename = payload.get("filename") or ""
@@ -2927,7 +2994,7 @@ def create_fastapi_app():
 
         
         @app.post("/search")
-        async def search_vector_api(request: dict):
+        async def search_vector_api(request: dict, principal: Principal = Depends(principal_dep)):
             """
             Unified semantic + vector search API.
             Uses MPNet embeddings for both documents & image captions.
@@ -2936,10 +3003,10 @@ def create_fastapi_app():
             Tenant scoping: use the same keys as ingest where possible — bucketId or bucket_id, path,
             connectionId (preferred) or connection_id (alias). Milvus filter field remains connection_id.
             """
+            _require(principal, "reader")
+            user_id = _tenant(principal, request.get("userId") or request.get("user_id"),
+                              "userId or user_id is required")
             try:
-                user_id = request.get("userId") or request.get("user_id")
-                if not user_id:
-                    raise HTTPException(status_code=400, detail="userId or user_id is required")
                 raw_query = request.get("query")
                 query = _normalize_temporal_phrasing(raw_query)
                 limit = int(request.get("limit", 1000))  # Default to 1000, effectively no limit for most use cases
@@ -4421,7 +4488,7 @@ def create_fastapi_app():
         
         @app.delete("/delete-document")
         @app.post("/delete-document")  # Also support POST for compatibility
-        async def delete_document(request: Request):
+        async def delete_document(request: Request, principal: Principal = Depends(principal_dep)):
             """
             UI label: **Delete all vectors for one file** — removes every chunk for the given
             file_id (and optional user_id / bucket / path filters) from document + image collections.
@@ -4435,12 +4502,10 @@ def create_fastapi_app():
                 "connectionId": "optional — same value as POST /process (connection_id alias accepted)"
             }
             Query fallback (either method): ?fileId=&userId=&bucketId=&path=&connectionId=
+            Deletes only within the caller's tenant (from the API key, or userId for service keys).
             """
+            _require(principal, "uploader")
             try:
-                vi = ui_processor.get_vector_integration()
-                if not vi:
-                    raise HTTPException(status_code=500, detail="Vector integration not available")
-
                 body: Dict[str, Any] = {}
                 try:
                     ct = (request.headers.get("content-type") or "").lower()
@@ -4464,11 +4529,10 @@ def create_fastapi_app():
                         detail="file_id is required (JSON body or ?fileId= / ?file_id=)",
                     )
 
-                user_id = (
-                    body.get("user_id")
-                    or body.get("userId")
-                    or qp.get("user_id")
-                    or qp.get("userId")
+                user_id = _tenant(
+                    principal,
+                    body.get("user_id") or body.get("userId") or qp.get("user_id") or qp.get("userId"),
+                    "user_id is required to delete a document",
                 )
                 bucket_id = (
                     body.get("bucket_id")
@@ -4483,6 +4547,10 @@ def create_fastapi_app():
                     or qp.get("connectionId")
                     or qp.get("connection_id")
                 )
+
+                vi = ui_processor.get_vector_integration()
+                if not vi:
+                    raise HTTPException(status_code=500, detail="Vector integration not available")
 
                 logger.info(
                     f"[DELETE] Deleting document: file_id={file_id}, "
@@ -4510,8 +4578,7 @@ def create_fastapi_app():
                                 "connectionId (or connection_id) unless those were set at ingest.",
                             },
                         )
-                    if user_id:
-                        _CONTENT_SCAN_CACHE.pop(user_id, None)
+                    _CONTENT_SCAN_CACHE.pop(user_id, None)
                     # Invalidate metadata index + disk cache so deleted file
                     # never surfaces in future metadata-first routing.
                     try:

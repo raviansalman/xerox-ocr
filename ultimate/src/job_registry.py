@@ -214,6 +214,15 @@ class JobRegistry:
             rec["file_id"] = file_id
         return rec
 
+    def task_owner(self, task_id: str) -> Optional[str]:
+        """Return the user_id that registered task_id, or None if unknown."""
+        try:
+            raw = self._redis.get(f"{self.TASK_LOOKUP_PREFIX}:{task_id}")
+            return json.loads(raw).get("user_id") if raw else None
+        except Exception as exc:
+            logger.debug(f"[JOB REGISTRY] task_owner failed: {exc}")
+            return None
+
     def get_job_by_task_id(self, task_id: str) -> Optional[Dict]:
         """Load job record by Celery task_id. Used when Celery result backend has expired."""
         try:
