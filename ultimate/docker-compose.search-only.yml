@@ -41,6 +41,7 @@ services:
     environment:
       PYTHONPATH: /app
       SEARCH_ONLY: "true"
+      API_KEYS_FILE: /run/secrets/xocr_api_keys.json
       SEARCH_DEFAULT_METHOD: both
       SEARCH_REQUEST_TIMEOUT: "60"
       SEMANTIC_STRICTNESS: precision
@@ -72,6 +73,7 @@ services:
       - ./src:/app/src
       - ./ultimate_ui.py:/app/ultimate_ui.py
       - ./search_api.py:/app/search_api.py
+      - ${API_KEYS_HOST_FILE:-./secrets/api_keys.json}:/run/secrets/xocr_api_keys.json:ro
       - ./logs:/app/logs
       - ./data:/app/data
     depends_on:

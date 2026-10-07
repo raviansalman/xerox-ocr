@@ -31,6 +31,7 @@ services:
     environment:
       PYTHONPATH: /app
       TESSERACT_CMD: /usr/bin/tesseract
+      API_KEYS_FILE: /run/secrets/xocr_api_keys.json
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       QUEUE_SHARD_COUNT: "0"
       EMBEDDER_SEARCH_URL: http://ultimate-embedder-search:8080/embed
@@ -43,6 +44,7 @@ services:
     volumes:
       - ./src:/app/src
       - ./ultimate_ui.py:/app/ultimate_ui.py
+      - ${API_KEYS_HOST_FILE:-./secrets/api_keys.json}:/run/secrets/xocr_api_keys.json:ro
       - ./temp_uploads:/app/temp_uploads
       - ./logs:/app/logs
       - ./data:/app/data

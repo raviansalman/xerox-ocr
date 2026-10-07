@@ -6,6 +6,25 @@
 | Regression suite | `06f0043`, `ultimate/tests` (see `ultimate/tests/README.md`) |
 | Date | 2026-10-07 |
 
+
+## Status since this assessment (Phase 0 and Phase 1 security)
+
+| ID | Item | Status |
+|---|---|---|
+| KD-SEC-01 | Tenant filter injection | Fixed `47cfedc` |
+| KD-SEC-02 | Ownerless, cross-tenant delete | Fixed `640998d` |
+| KD-SEC-03 | Admin endpoints open by default | Fixed `640998d` |
+| KD-SEC-04 | No authentication | Fixed for this phase `640998d`: API keys, roles, tenant from the key (OIDC later) |
+| KD-SEC-05 | Public Redis + pickle | Fixed `75b0f7e` |
+| KD-SEC-06 | Stored XSS in the UI | Fixed `640998d`, `8fabb29` (verified in Chromium) |
+| KD-SEC-07 | SSRF / unbounded download | Fixed `95ca5ca` |
+| KD-SEC-08 | Uploads without limits | Fixed `95ca5ca` |
+| KD-API-01 | 400 → 500 with traceback | Fixed `640998d` |
+| KD-MLV-01 | Destructive auto-migration | Fixed `95ca5ca` |
+| KD-SEC-09 / KD-SRCH-04 / KD-SRCH-11 | Dead search code and latent leak | **Not touched** (by decision). See `docs/FORENSICS.md` |
+
+Operator guide for the new boundary: `docs/SECURITY.md`. Forensic report: `docs/FORENSICS.md`.
+
 ## 0. How this assessment was produced
 
 Every application module was read (about 30,000 lines across 22 Python files, 5 compose files, 6 shell scripts). Claims were then checked by running the code wherever the environment allowed:
@@ -449,12 +468,12 @@ Order of seams (lowest risk first):
 | ID | Item | Phase | Size | Risk to search |
 |---|---|---|---|---|
 | P0-1 | ~~Escape tenant and scope values in every Milvus expression (KD-SEC-01)~~ **Done (`47cfedc`)** | 1 | S | None for valid IDs |
-| P0-2 | Bind Redis and Milvus to the internal Docker network; Redis password; replace pickle with JSON (KD-SEC-05) | 1 | S | None |
-| P0-3 | Remove collection auto-drop; single source for model, dim and collection names (KD-MLV-01/02) | 1 | S | None |
-| P0-4 | Require `user_id` on delete and never retry delete without scope; admin key mandatory (KD-SEC-02/03) | 1 | S | API change for clients that omit `user_id`; confirm with backend owner |
+| P0-2 | **Done.** Bind Redis and Milvus to the internal Docker network; Redis password; replace pickle with JSON (KD-SEC-05) | 1 | S | None |
+| P0-3 | **Partly done** (auto-drop removed; single config source still Phase 3). Remove collection auto-drop; single source for model, dim and collection names (KD-MLV-01/02) | 1 | S | None |
+| P0-4 | **Done.** Require `user_id` on delete and never retry delete without scope; admin key mandatory (KD-SEC-02/03) | 1 | S | API change for clients that omit `user_id`; confirm with backend owner |
 | P0-5 | Rotate the keys that were in the original env files | 1 | S | None |
-| P0-6 | Authentication (API key per tenant or OIDC) and tenant derived from the credential (KD-SEC-04) | 7 | M | API contract change |
-| P1-1 | `/process` returns 400 for validation, no tracebacks (KD-API-01) | 1 | S | None |
+| P0-6 | **Done.** Authentication (API key per tenant or OIDC) and tenant derived from the credential (KD-SEC-04) | 7 | M | API contract change |
+| P1-1 | **Done.** `/process` returns 400 for validation, no tracebacks (KD-API-01) | 1 | S | None |
 | P1-2 | Real `/health/live` and `/health/ready` (KD-OPS-02) | 1 | S | None |
 | P1-3 | Handlers as sync `def` or `run_in_threadpool`; more uvicorn workers (KD-OPS-01) | 1 | S | None |
 | P1-4 | Per-page extraction with deterministic order and `page_number` (KD-OCR-02/03) | 4 | M | Changes chunk boundaries; re-index needed |
@@ -730,7 +749,7 @@ Format per issue: Issue, Location, Severity, Why it matters, Current behavior, R
 * **How to test:** `test_user_id_is_escaped_*`, `test_crafted_user_id_cannot_read_other_tenants`, `test_user_id_with_quote_still_finds_own_documents` (all passing since the fix).
 * **Status:** fixed with a single escaping helper used at all four sites; ID format validation is still recommended as part of KD-SEC-04.
 
-### KD-SEC-02: Ownerless, cross-tenant delete
+### KD-SEC-02: Ownerless, cross-tenant delete (FIXED in `640998d`)
 * **Location:** `ultimate_ui.py:4422-4558`; `src/ultimate_vector_integration.py:1338-1449`
 * **Severity:** CRITICAL
 * **Why it matters:** anyone can delete any tenant's document by file id.
@@ -739,7 +758,7 @@ Format per issue: Issue, Location, Severity, Why it matters, Current behavior, R
 * **Regression risk:** API change for callers that omit `user_id`.
 * **How to test:** `test_delete_requires_owner`.
 
-### KD-SEC-03: Admin endpoints open by default
+### KD-SEC-03: Admin endpoints open by default (FIXED in `640998d`)
 * **Location:** `ultimate_ui.py:2068, 2753-2855`
 * **Severity:** CRITICAL
 * **Why it matters:** `/admin/purge-user-vectors` wipes a tenant; `/admin/vector-storage-by-user` lists all tenants.
@@ -748,7 +767,7 @@ Format per issue: Issue, Location, Severity, Why it matters, Current behavior, R
 * **Regression risk:** ops scripts must send the key.
 * **How to test:** `test_admin_purge_requires_credentials`.
 
-### KD-SEC-04: No authentication
+### KD-SEC-04: No authentication (FIXED in `640998d`)
 * **Location:** all routes in `ultimate_ui.py`
 * **Severity:** CRITICAL
 * **Why it matters:** every other control depends on knowing the caller.
@@ -757,7 +776,7 @@ Format per issue: Issue, Location, Severity, Why it matters, Current behavior, R
 * **Regression risk:** contract change.
 * **How to test:** route-level auth tests per role.
 
-### KD-SEC-05: Public Redis plus pickle deserialization
+### KD-SEC-05: Public Redis plus pickle deserialization (FIXED in `75b0f7e`)
 * **Location:** `docker-compose.ultimate.yml` and `docker-compose.processing-only.yml` (`6379:6379`), `src/semantic/semantic_components.py:1084` (`pickle.loads`), `:1136, 1166` (`pickle.load`)
 * **Severity:** CRITICAL
 * **Why it matters:** writing a crafted blob to `metadata_index_blob:<user>` gives code execution in the API; Redis also holds every tenant's full text.
@@ -766,7 +785,7 @@ Format per issue: Issue, Location, Severity, Why it matters, Current behavior, R
 * **Regression risk:** none (format change with versioned key).
 * **How to test:** compose lint test (no published data-store ports); unit test that loading a non-JSON blob is rejected.
 
-### KD-SEC-06: Stored XSS in the UI
+### KD-SEC-06: Stored XSS in the UI (FIXED in `640998d`)
 * **Location:** `ultimate_ui.py` `create_html_ui` (search results rendering, `${tx.substring(0, 200)}` into `innerHTML`); HTML uploads indexed with markup (`ultimate_search_processor.py:3337`)
 * **Severity:** HIGH
 * **Why it matters:** a malicious upload runs script in an admin's browser.
@@ -775,7 +794,7 @@ Format per issue: Issue, Location, Severity, Why it matters, Current behavior, R
 * **Regression risk:** none.
 * **How to test:** `test_ui_escapes_result_text`; browser test with the payload document.
 
-### KD-SEC-07: SSRF and unbounded download
+### KD-SEC-07: SSRF and unbounded download (FIXED in `95ca5ca`)
 * **Location:** `ultimate_ui.py:2058-2066, 2179-2183` (`requests.head`), `src/ultimate_tasks.py:231-340` (`download_file`)
 * **Severity:** HIGH
 * **Why it matters:** the worker fetches internal URLs (cloud metadata endpoints, internal services) and unlimited sizes.
@@ -784,7 +803,7 @@ Format per issue: Issue, Location, Severity, Why it matters, Current behavior, R
 * **Regression risk:** URLs from unexpected hosts rejected.
 * **How to test:** unit tests with `http://169.254.169.254/` and private IPs.
 
-### KD-SEC-08: Uploads without limits
+### KD-SEC-08: Uploads without limits (FIXED in `95ca5ca`)
 * **Location:** `ultimate_ui.py:2328-2552`
 * **Severity:** HIGH
 * **Why it matters:** memory exhaustion; arbitrary file types reach parsers (antiword, ppt2txt subprocesses).
@@ -802,7 +821,7 @@ Format per issue: Issue, Location, Severity, Why it matters, Current behavior, R
 * **Regression risk:** enabling metadata-first changes ranking; must be done with the golden set.
 * **How to test:** port `v3` scenario into the integration tier once fixed.
 
-### KD-API-01: Validation errors become 500 with traceback
+### KD-API-01: Validation errors become 500 with traceback (FIXED in `640998d`)
 * **Location:** `ultimate_ui.py:2091-2326` (also `/process-file`, `/task-status`)
 * **Severity:** HIGH
 * **Why it matters:** clients cannot distinguish bad input from outages; internals leak.
@@ -846,7 +865,7 @@ Format per issue: Issue, Location, Severity, Why it matters, Current behavior, R
 * **Current behavior:** running without the env file sends tasks to `_u0.._u7` queues no worker consumes.
 * **Recommended change:** one settings module with the deployed values as defaults.
 
-### KD-MLV-01: Destructive auto-migration
+### KD-MLV-01: Destructive auto-migration (FIXED in `95ca5ca`)
 * **Location:** `src/vector_db_milvus_server.py:221-271`
 * **Severity:** CRITICAL (data loss)
 * **Why it matters:** one wrong env value (or a transient error during schema inspection) drops the production collection on startup of any process.

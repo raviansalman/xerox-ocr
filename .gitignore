@@ -73,3 +73,6 @@ docker.env.search.local
 
 # Test caches
 .pytest_cache/
+
+# Local secrets (API key file for compose)
+ultimate/secrets/

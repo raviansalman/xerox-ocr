@@ -153,7 +153,11 @@ def authenticate(headers) -> Principal:
     """Resolve request headers to a Principal or raise AuthError."""
     if auth_disabled():
         return _DEV_PRINCIPAL
-    index = key_index()
+    try:
+        index = key_index()
+    except Exception:
+        logger.exception("[AUTH] API key configuration could not be loaded")
+        raise AuthError(503, "Authentication configuration is invalid; see server logs")
     if not index:
         raise AuthError(503, "Authentication is not configured on this server")
     raw = _presented_key(headers)

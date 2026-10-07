@@ -35,6 +35,11 @@ and uses throwaway collections (`xocr_test_docs_*`) that are dropped afterwards.
 It validates plumbing, tenant scoping and exact/lexical behaviour, **not** the semantic
 quality of all-mpnet-base-v2. Semantic quality has to be checked against the Docker stack.
 
+## API keys in tests
+
+`conftest.py` configures test keys (hashes only) from `tests/support/auth.py`: a `service` key, an `admin`
+key and tenant-bound reader/uploader keys for `alice` and `bob`. Use `headers("service")` etc. in tests.
+
 ## Known defects
 
 Tests marked `known_defect` assert the *correct* behaviour and are `xfail(strict=True)`.

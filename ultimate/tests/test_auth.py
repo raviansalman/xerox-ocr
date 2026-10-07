@@ -175,3 +175,9 @@ def test_auth_disabled_is_explicit_opt_in(client, fresh_keys):
 def test_cli_hash_matches_config_format():
     assert security.hash_key("k") == H
     assert json.loads('{"x": "%s"}' % H)
+
+
+def test_invalid_key_config_fails_closed(client, fresh_keys):
+    fresh_keys('[{"key_sha256": "nothex", "roles": ["admin"]}]')
+    r = client.post("/admin/route-test", json={"filename": "a.pdf"}, headers=headers("admin"))
+    assert r.status_code == 503

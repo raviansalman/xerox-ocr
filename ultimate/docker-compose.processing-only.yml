@@ -33,6 +33,7 @@ services:
     environment:
       PYTHONPATH: /app
       TESSERACT_CMD: /usr/bin/tesseract
+      API_KEYS_FILE: /run/secrets/xocr_api_keys.json
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       # Must match Celery workers: they listen to ultimate_* not ultimate_*_u0..u7
       QUEUE_SHARD_COUNT: "0"
@@ -41,6 +42,7 @@ services:
     volumes:
       - ./src:/app/src
       - ./ultimate_ui.py:/app/ultimate_ui.py
+      - ${API_KEYS_HOST_FILE:-./secrets/api_keys.json}:/run/secrets/xocr_api_keys.json:ro
       - ./temp_uploads:/app/temp_uploads
       - ./logs:/app/logs
       - ./data:/app/data
