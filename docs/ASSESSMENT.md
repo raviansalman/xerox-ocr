@@ -21,9 +21,20 @@
 | KD-SEC-08 | Uploads without limits | Fixed `95ca5ca` |
 | KD-API-01 | 400 → 500 with traceback | Fixed `640998d` |
 | KD-MLV-01 | Destructive auto-migration | Fixed `95ca5ca` |
+| KD-OPS-02 | `/health` did not check anything | Fixed `df98b98`: liveness, readiness, real dependency checks |
+| KD-OPS-01 | One slow search froze the API | Fixed `df98b98`: search body off the event loop, still serialized (throughput unchanged) |
+| KD-MLV-03 | Full scans empty after a Milvus restart / before first load | Fixed `df98b98` |
 | KD-SEC-09 / KD-SRCH-04 / KD-SRCH-11 | Dead search code and latent leak | **Not touched** (by decision). See `docs/FORENSICS.md` |
 
 Operator guide for the new boundary: `docs/SECURITY.md`. Forensic report: `docs/FORENSICS.md`.
+Health checks, search isolation and Milvus restart behaviour: `docs/SECURITY.md` section 7.
+
+**Reading the regression results correctly.** The four regression queries ("FOR IMMEDIATE RELEASE",
+"press release", "Lisa Riordan", "StorageChain") still rank the expected document first after every change.
+That proves the changes did not break the current path. It does **not** prove the intended legacy search is
+working: in this snapshot, exact phrase retrieval comes from vector similarity plus a phrase-first sort,
+because the exact-search supplements and query understanding are dead code (KD-SRCH-11). Hybrid search should
+not be presented as a finished capability until the search phase is done.
 
 ## 0. How this assessment was produced
 
@@ -474,15 +485,15 @@ Order of seams (lowest risk first):
 | P0-5 | Rotate the keys that were in the original env files | 1 | S | None |
 | P0-6 | **Done.** Authentication (API key per tenant or OIDC) and tenant derived from the credential (KD-SEC-04) | 7 | M | API contract change |
 | P1-1 | **Done.** `/process` returns 400 for validation, no tracebacks (KD-API-01) | 1 | S | None |
-| P1-2 | Real `/health/live` and `/health/ready` (KD-OPS-02) | 1 | S | None |
-| P1-3 | Handlers as sync `def` or `run_in_threadpool`; more uvicorn workers (KD-OPS-01) | 1 | S | None |
+| P1-2 | **Done.** Real `/health/live` and `/health/ready` (KD-OPS-02) | 1 | S | None |
+| P1-3 | **Done for `/search`** (single-thread executor, `df98b98`); `/process`, `/process-file`, `/delete-document` still open. Handlers as sync `def` or `run_in_threadpool`; more uvicorn workers (KD-OPS-01) | 1 | S | None |
 | P1-4 | Per-page extraction with deterministic order and `page_number` (KD-OCR-02/03) | 4 | M | Changes chunk boundaries; re-index needed |
 | P1-5 | Per-page OCR decision for mixed PDFs, 300 DPI render (KD-OCR-05) | 4 | S | More text indexed |
 | P1-6 | OCR languages `eng+ara`, `tesseract-ocr-ara` in image, real confidence (KD-OCR-06) | 4 | S | None for English |
 | P1-7 | Fix `_clean_ocr_text` uppercase rule (KD-OCR-01) | 4 | S | Changes indexed text for images |
 | P1-8 | Persist extracted metadata as dynamic fields (KD-DATA-01) | 4 | S | None |
 | P1-9 | Idempotent upsert (KD-DATA-02) | 5 | S | None |
-| P1-10 | Fix `query_all_chunks` load; paginate scans (KD-MLV-03/04) | 5 | M | Recall increases for big tenants |
+| P1-10 | **Load part done** (`df98b98`); pagination still open. Fix `query_all_chunks` load; paginate scans (KD-MLV-03/04) | 5 | M | Recall increases for big tenants |
 | P1-11 | Demo compose profile with workers, healthchecks, offline models | 8 | M | None |
 | P2-1 | Split `/search` and `search_documents` into stages without behaviour change | 3 | L | Guarded by tests |
 | P2-2 | Domain profiles: legacy vs generic ranking rules | 5 | M | Generic profile changes ranking by design |
@@ -830,7 +841,7 @@ Format per issue: Issue, Location, Severity, Why it matters, Current behavior, R
 * **Regression risk:** status codes change from 500 to 4xx for bad requests.
 * **How to test:** `test_process_without_file_url_is_a_client_error`, `test_process_errors_do_not_leak_tracebacks`.
 
-### KD-OPS-01: Event loop blocked by search
+### KD-OPS-01: Event loop blocked by search (FIXED in `df98b98`)
 * **Location:** `ultimate_ui.py:2929` (`async def search_vector_api` with blocking `future.result()`), same for `/process` (blocking `requests.head`, workflow API calls) and `/delete-document`
 * **Severity:** HIGH
 * **Why it matters:** with `--workers 1`, one slow search stalls every request; `/health` took 8.6 s during a 4 s search (VERIFIED) and the Docker healthcheck timeout is 10 s.
@@ -838,7 +849,7 @@ Format per issue: Issue, Location, Severity, Why it matters, Current behavior, R
 * **Regression risk:** none functionally.
 * **How to test:** concurrency test measuring health latency during a slow search.
 
-### KD-OPS-02: Health check does not check
+### KD-OPS-02: Health check does not check (FIXED in `df98b98`)
 * **Location:** `ultimate_ui.py:4647-4718`
 * **Severity:** HIGH
 * **Current behavior:** `celery` and `redis` hardcoded `"healthy"`; Milvus "healthy" if an object exists (VERIFIED).
@@ -880,7 +891,7 @@ Format per issue: Issue, Location, Severity, Why it matters, Current behavior, R
 * **Current behavior:** defaults agree today (pinned by `test_default_dimensions_models_and_collection_names_agree`); changing one var desynchronizes ingest and search, and with KD-MLV-01 can drop data.
 * **Recommended change:** single settings source; embedder reports its model and dim; startup check.
 
-### KD-MLV-03: Full scans fail on an unloaded collection
+### KD-MLV-03: Full scans fail on an unloaded collection (FIXED in `df98b98`)
 * **Location:** `src/vector_db_milvus_server.py:826-945`
 * **Severity:** MEDIUM
 * **Current behavior:** after a Milvus restart, filename search, content scan and metadata builds return nothing until a vector search loads the collection (VERIFIED).

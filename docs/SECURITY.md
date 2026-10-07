@@ -156,7 +156,70 @@ rules on the worker hosts for defence in depth.
 * The repository `raviansalman/xerox-ocr` is currently **public**, and this documentation describes the
   original system's weaknesses. Make it private.
 
-## 7. Not covered yet (later phases)
+## 7. Health, readiness and resilience (Phase 1A)
+
+### Endpoints (all public, no key)
+
+| Endpoint | Meaning | Calls dependencies | Status codes | Use it for |
+|---|---|---|---|---|
+| `GET /health/live` | The process serves HTTP | No | 200 | Container healthcheck (all compose files) |
+| `GET /health/ready` | Critical dependencies answer | Yes | 200 ready (healthy or degraded), 503 not ready | Load balancer / traffic routing |
+| `GET /health` | Same checks and code as `/health/ready`, plus UI fields | Yes | 200 / 503 | Dashboards, the UI health panel |
+
+Checks (`src/health.py`) run concurrently, each limited by `HEALTH_CHECK_TIMEOUT_SEC` (default 3 s):
+
+| Check | Critical | How | Failure states |
+|---|---|---|---|
+| `redis` | yes | `PING` on `REDIS_URL` | `not_configured`, `unreachable` (password never echoed) |
+| `milvus` | yes | separate connection alias; `has_collection` + `load_state` of `DOC_COLLECTION` | `unreachable`, `collection_loading` |
+| `embedder` | yes | real `/embed` of one text; dimension must equal `EMBED_MODEL_DIM` (768) | `not_configured`, `unreachable`, `wrong_dimension` |
+| `workers` | no | Celery `ping` + `active_queues`; lists queues with no consumer | `no_workers`, `unreachable` |
+
+Overall: any critical failure means `unhealthy` / 503; only non-critical failures mean `degraded` / 200 (search
+works, uploads queue until a worker returns); otherwise `healthy` / 200. A check that hangs reports `timeout`.
+
+Container healthchecks use liveness on purpose. Using readiness there would mark the API container unhealthy
+whenever Milvus reloads, and orchestrators that act on that would restart a working API. Route traffic with
+`/health/ready` instead.
+
+### Search isolation
+
+Root cause of "one slow search freezes the API": `POST /search` was declared `async` but contained no `await`,
+so its whole body (embedding calls, Milvus searches and scans, lazy initialization, thread waits of up to 60 s)
+ran on the event loop of a single uvicorn worker. Nothing else could be served until it finished.
+
+Fix: the handler authenticates on the event loop, then runs the unchanged search body on a dedicated
+**single-thread** executor. Unrelated requests are served during a slow search (verified: liveness and the UI
+page answer in under 0.5 s during a 3 s search; the same test fails against the old code). Searches stay
+**serialized per process exactly as before**. That is deliberate: the search body stores per-request state on
+process-wide singletons (`SemanticPipeline._current_deadline`, `vi._last_query_meta`, KD-SRCH-03), and
+running searches concurrently would let them overwrite each other's time budgets. Throughput therefore equals
+the previous behaviour; scale with more uvicorn workers or replicas, not threads, until KD-SRCH-03 is fixed
+in the search phase.
+
+### Milvus restart behaviour
+
+Observed with a real container restart: the client's gRPC connection survives, but Milvus reports `/healthz`
+healthy while previously loaded collections are still `Loading`. During that window `query_all_chunks`
+(the full scan behind filename/lexical search, content scan, year scans and metadata index builds) failed with
+"collection not loaded" and returned `[]`; the 90 s lexical-result and 180 s content-scan caches could then
+keep that empty answer. `query_all_chunks` now waits for (or triggers) loading like every other read path, so it
+returns correct rows right after a restart (integration test `test_full_scan_right_after_milvus_restart`
+restarts the container and checks this). `/health/ready` reports `collection_loading` until loading finishes.
+
+### Operational limitations (still open)
+
+* `/process`, `/process-file` and `/delete-document` remain `async` handlers that make blocking calls
+  (workflow API, Redis, Milvus delete). They are short compared with search but can still stall the loop
+  briefly; move them off the loop in a later phase.
+* A full scan issued while Milvus is loading waits up to 60 s for the load to complete (on the search thread,
+  not the event loop).
+* The caches mentioned above were not changed (search logic); an empty result produced by any other failure
+  can still be cached for 90 to 180 s.
+* `/health` checks run on every request; protect them from abuse at the proxy if exposed publicly.
+* Uploads still queue silently when no worker consumes a queue; `/health` now lists `queues_without_workers`.
+
+## 8. Not covered yet (later phases)
 
 | Gap | Phase |
 |---|---|
@@ -165,8 +228,6 @@ rules on the worker hosts for defence in depth.
 | Rate limiting, per-key quotas | 10 |
 | Audit log of who searched/ingested/deleted what | 7 |
 | OIDC / SSO instead of static API keys; key expiry | 7 |
-| `/health` still reports Celery/Redis without checking (KD-OPS-02) | 1 (next) |
-| Event-loop blocking under slow searches (KD-OPS-01) | 1 (next) |
 | Shared metadata index must become per-tenant before `threading` is imported (KD-SEC-09) | 5 |
 | Embedder services have no auth (internal network only) | 8 |
 | Prompt-injection handling for OCR text once RAG exists | 6 |
