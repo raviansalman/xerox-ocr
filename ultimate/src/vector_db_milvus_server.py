@@ -813,7 +813,12 @@ class MilvusServerVectorDatabase:
 
         # Clamp limit to [1, 16384] to prevent Milvus errors
         clamped_limit = max(1, min(limit, 16384))
-        
+
+        # Like every other read path: load the collection (or wait while Milvus is still loading
+        # it after a restart) instead of failing with "collection not loaded" and returning [].
+        if not self._ensure_collection_loaded():
+            return []
+
         try:
             # 1) Build expression
             if expr:

@@ -55,7 +55,7 @@ services:
       - ultimate-search
     restart: unless-stopped
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/health/live" ]
       # Give the app time to warm up models before marking it unhealthy
       interval: 30s
       timeout: 10s

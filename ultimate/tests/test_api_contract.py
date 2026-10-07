@@ -55,13 +55,6 @@ def test_process_errors_do_not_leak_tracebacks(client):
     assert "Traceback" not in r.text
 
 
-@pytest.mark.known_defect
-@pytest.mark.xfail(strict=True, reason="KD-OPS-02: /health hardcodes celery/redis as healthy without checking")
-def test_health_does_not_claim_unchecked_dependencies(client):
-    services = client.get("/health").json()["services"]
-    assert services["celery"] != "healthy"  # no worker exists in the unit-test environment
-
-
 def test_ui_escapes_result_text():
     import ultimate_ui
 

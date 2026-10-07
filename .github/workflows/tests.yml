@@ -44,4 +44,5 @@ jobs:
       - name: Integration tests
         env:
           RUN_INTEGRATION: "1"
+          XOCR_MILVUS_CONTAINER: xocr-milvus
         run: pytest -q

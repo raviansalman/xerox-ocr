@@ -1634,11 +1634,16 @@ def create_html_ui():
                 fetch('/health')
                 .then(response => response.json())
                 .then(data => {
-                    let healthHtml = '<div class="status success">System Health Check Complete!</div>';
+                    const cls = data.status === 'healthy' ? 'success' : (data.status === 'degraded' ? 'info' : 'error');
+                    let healthHtml = '<div class="status ' + cls + '">System status: ' + escHtml(data.status) + '</div>';
                     healthHtml += '<div class="api-results">';
-                    healthHtml += '<h4>System Status:</h4>';
-                    healthHtml += `<div class="api-result-item"><strong>Status:</strong> ${data.status}</div>`;
-                    healthHtml += `<div class="api-result-item"><strong>Timestamp:</strong> ${data.timestamp}</div>`;
+                    healthHtml += '<h4>Dependencies:</h4>';
+                    Object.values(data.checks || {}).forEach((c) => {
+                        healthHtml += '<div class="api-result-item"><strong>' + escHtml(c.name) + ':</strong> ' +
+                            escHtml(c.ok ? 'ok' : c.status) + (c.critical ? '' : ' (non-critical)') +
+                            (c.detail ? ' - ' + escHtml(c.detail) : '') + ' <small>(' + escHtml(c.latency_ms) + ' ms)</small></div>';
+                    });
+                    healthHtml += `<div class="api-result-item"><strong>Timestamp:</strong> ${escHtml(data.timestamp)}</div>`;
                     
                     if (data.vector_stats) {
                         healthHtml += '<h4>Vector Database:</h4>';
@@ -3012,6 +3017,13 @@ def create_fastapi_app():
             return query
 
         
+        # Searches run on one dedicated thread, off the event loop: a slow search no longer freezes
+        # health checks and other requests, and searches stay serialized exactly as before (the body
+        # writes per-request state onto process-wide singletons, KD-SRCH-03, so do not raise this
+        # above 1 until that is fixed).
+        from concurrent.futures import ThreadPoolExecutor as _SearchPool
+        _SEARCH_EXECUTOR = _SearchPool(max_workers=1, thread_name_prefix="search")
+
         @app.post("/search")
         async def search_vector_api(request: dict, principal: Principal = Depends(principal_dep)):
             """
@@ -3025,6 +3037,11 @@ def create_fastapi_app():
             _require(principal, "reader")
             user_id = _tenant(principal, request.get("userId") or request.get("user_id"),
                               "userId or user_id is required")
+            loop = asyncio.get_running_loop()
+            return await loop.run_in_executor(_SEARCH_EXECUTOR, _search_blocking, request, user_id)
+
+        def _search_blocking(request: dict, user_id: str):
+            """Body of POST /search, unchanged; runs on _SEARCH_EXECUTOR."""
             try:
                 raw_query = request.get("query")
                 query = _normalize_temporal_phrasing(raw_query)
@@ -4730,78 +4747,28 @@ def create_fastapi_app():
             except Exception as e:
                 logger.warning(f"Engine pre-warming registration failed: {e}")
         
+        @app.get("/health/live")
+        async def health_live():
+            """Liveness: the process serves HTTP. No dependency calls (used by the container healthcheck)."""
+            return {"status": "alive", "timestamp": time.strftime("%Y-%m-%d %H:%M:%S")}
+
+        def _readiness_response():
+            from src.health import run_checks, summarize
+
+            code, body = summarize(run_checks())
+            body["processor_available"] = ui_processor.available
+            body["vector_integration_loaded"] = ui_processor.vector_integration is not None
+            return JSONResponse(status_code=code, content=body)
+
+        @app.get("/health/ready")
+        def health_ready():
+            """Readiness: 200 when Redis, Milvus and the embedder answer (workers only degrade); else 503."""
+            return _readiness_response()
+
         @app.get("/health")
-        async def health_check():
-            """Comprehensive health check endpoint with detailed system status."""
-            try:
-                status = {
-                    "status": "healthy",
-                    "processor_available": ui_processor.available,
-                    "vector_integration_available": VECTOR_INTEGRATION_AVAILABLE,
-                    "vector_integration_loaded": ui_processor.vector_integration is not None,
-                    "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-                    "services": {
-                        "api": "healthy",
-                        "celery": "healthy",
-                        "redis": "healthy",
-                        "milvus": "healthy" if ui_processor.vector_integration else "unknown (lazy load pending)"
-                    }
-                }
-                
-                vi = ui_processor.vector_integration
-                if vi:
-                    # Lightweight health check - don't query Milvus directly to avoid
-                    # triggering collection load on every health check. Just verify
-                    # the integration is available and collection exists.
-                    try:
-                        collection_name = "ultimate_document_chunks"
-                        vector_size = 768
-                        
-                        # Check if collection exists without loading it
-                        vector_db = vi.vector_db
-                        if vector_db and vector_db.collection:
-                            # Collection is initialized but may not be loaded (lazy loading)
-                            # This is fine - it will load on first search
-                            stats = {
-                                "collection_name": collection_name,
-                                "vector_size": vector_size,
-                                "status": "initialized",
-                                "note": "Collection will be loaded lazily on first search"
-                            }
-                        else:
-                            stats = {
-                                "collection_name": collection_name,
-                                "vector_size": vector_size,
-                                "status": "not_initialized"
-                            }
-                        
-                        status["vector_stats"] = stats
-                        status["data_summary"] = stats
-                        status["search_functionality"] = "available"
-                            
-                    except Exception as e:
-                        logger.debug(f"Health check vector stats failed (non-critical): {e}")
-                        status["vector_stats"] = {"status": "unknown", "error": str(e)}
-                        status["data_summary"] = {"status": "unknown", "error": str(e)}
-                else:
-                    status["vector_stats"] = {"status": "pending", "note": "Will load model/DB lazily on first use"}
-                    status["data_summary"] = {"status": "pending", "note": "Will load model/DB lazily on first use"}
-                
-                return status
-                
-            except Exception as e:
-                logger.error(f"Health check failed: {e}")
-                return {
-                    "status": "unhealthy",
-                    "error": str(e),
-                    "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-                    "services": {
-                        "api": "error",
-                        "celery": "unknown",
-                        "redis": "unknown", 
-                        "milvus": "unknown"
-                    }
-                }
+        def health_check():
+            """Dependency report (same checks and status code as /health/ready)."""
+            return _readiness_response()
         
         return app
         

@@ -140,8 +140,6 @@ def test_extracted_years_are_persisted(env):
     assert 2024 in (row.get("years") or [])
 
 
-@pytest.mark.known_defect
-@pytest.mark.xfail(strict=True, reason="KD-MLV-03: query_all_chunks does not load the collection first")
 def test_full_scan_works_before_first_vector_search(env):
     assert env["unloaded_rows"] > 0
 

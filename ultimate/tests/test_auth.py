@@ -156,7 +156,9 @@ def test_service_key_must_name_a_valid_tenant(client):
 
 
 def test_public_routes(client):
-    assert client.get("/health").status_code == 200
+    assert client.get("/health/live").status_code == 200
+    for path in ("/health", "/health/ready"):  # no key needed; 503 here only because no dependency runs
+        assert client.get(path).status_code in (200, 503)
     assert client.get("/").status_code == 200
 
 
