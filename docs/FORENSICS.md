@@ -34,6 +34,14 @@ history. Everything else is answered from the snapshot.
 | F9 | n/a | `ultimate_vector_integration.py`, `semantic_pipeline.py`, `ultimate_search_processor.py` | Three `search_documents` implementations; `DocumentProcessor.search_documents` and the fuzzy layer are never called | Only the vector-integration and semantic-pipeline versions are live | Historical fuzzy keyword matching | None | Delete the dead one in Phase 3 |
 | F10 | n/a | `ultimate_vector_integration.py:84-172` | `is_entity_only_query`, `contains_boilerplate_contract`, `filename_entity_overlap`, `debug_candidate` are never referenced | None | Earlier entity-aware ranking | None | Delete in Phase 3 |
 
+| F11 | n/a | `src/semantic/query_enhancement.py:109-110` | Uses `os` without importing it | `known_organizations.json` never loads (caught, logged as a warning) | Load the org list | None | Found in the search forensics milestone. Same pattern as F1/F2: see `docs/SEARCH_FORENSICS.md` section 9 |
+
+**Update (search forensics milestone):** `docs/SEARCH_FORENSICS.md` adds evidence that production differed from
+`main` (`scripts/compare_staging_prod_search.py` expects populated `query_meta` and a MetadataIndex disk cache),
+traces all three missing names to the module consolidation, and demonstrates with an in-memory experiment that
+restoring `threading` leaks documents across tenants through `/search`. `scripts/forensics/compare_deployed.py`
+automates the deployed-tree comparison below.
+
 ## Answers to the seven questions
 
 1. **Does another branch contain the missing implementations?** Unknown: no branch or history is available. The

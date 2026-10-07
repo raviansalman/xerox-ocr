@@ -178,6 +178,17 @@ Checks (`src/health.py`) run concurrently, each limited by `HEALTH_CHECK_TIMEOUT
 Overall: any critical failure means `unhealthy` / 503; only non-critical failures mean `degraded` / 200 (search
 works, uploads queue until a worker returns); otherwise `healthy` / 200. A check that hangs reports `timeout`.
 
+**Approved operational model (Phase 1A sign-off):**
+
+* `/health/live` = process liveness only. No dependency calls.
+* `/health/ready` = dependency readiness. Redis, Milvus or embedder unavailable means 503 / not ready.
+* `/health` = detailed operational health (same checks and status code as readiness, plus per-dependency detail
+  for dashboards and the UI).
+* Missing Celery workers = `degraded` with HTTP 200, not failed. Search keeps working without workers, so taking
+  the API out of rotation for that would cause an outage that is not needed. Uploads queue until a worker returns.
+* Search is serialized per process **intentionally** (one search thread) because the search body keeps
+  per-request state on shared objects (KD-SRCH-03). Do not raise the thread count before that is fixed.
+
 Container healthchecks use liveness on purpose. Using readiness there would mark the API container unhealthy
 whenever Milvus reloads, and orchestrators that act on that would restart a working API. Route traffic with
 `/health/ready` instead.
@@ -211,7 +222,8 @@ restarts the container and checks this). `/health/ready` reports `collection_loa
 
 * `/process`, `/process-file` and `/delete-document` remain `async` handlers that make blocking calls
   (workflow API, Redis, Milvus delete). They are short compared with search but can still stall the loop
-  briefly; move them off the loop in a later phase.
+  briefly. Decision at Phase 1A sign-off: **not** changed in 1A; tracked as KD-OPS-06 for a separate
+  operational-hardening milestone.
 * A full scan issued while Milvus is loading waits up to 60 s for the load to complete (on the search thread,
   not the event loop).
 * The caches mentioned above were not changed (search logic); an empty result produced by any other failure

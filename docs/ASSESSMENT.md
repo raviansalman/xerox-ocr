@@ -25,7 +25,11 @@
 | KD-OPS-01 | One slow search froze the API | Fixed `df98b98`: search body off the event loop, still serialized (throughput unchanged) |
 | KD-MLV-03 | Full scans empty after a Milvus restart / before first load | Fixed `df98b98` |
 | KD-SEC-09 / KD-SRCH-04 / KD-SRCH-11 | Dead search code and latent leak | **Not touched** (by decision). See `docs/FORENSICS.md` |
+| KD-SRCH-12 / 13 / 14, F11 | No exact-text retrieval path; `both` never runs semantic; NER fallback overwritten; missing `os` import | Found in search forensics, **not fixed** (by scope). See `docs/SEARCH_FORENSICS.md` |
+| KD-SEC-09 | Shared metadata index | Now **demonstrated** end to end through `/search` (in-memory experiment with `threading` injected): 19 cross-tenant results. Still latent in the repository |
+| KD-OPS-06 | `/process`, `/process-file`, `/delete-document` still block the event loop briefly | Open by decision (Phase 1A sign-off): separate operational-hardening milestone |
 
+Search baseline, capability matrix and tenant analysis: `docs/SEARCH_FORENSICS.md` (golden set in `ultimate/tests/golden/`).
 Operator guide for the new boundary: `docs/SECURITY.md`. Forensic report: `docs/FORENSICS.md`.
 Health checks, search isolation and Milvus restart behaviour: `docs/SECURITY.md` section 7.
 
@@ -876,6 +880,12 @@ Format per issue: Issue, Location, Severity, Why it matters, Current behavior, R
 * **Current behavior:** running without the env file sends tasks to `_u0.._u7` queues no worker consumes.
 * **Recommended change:** one settings module with the deployed values as defaults.
 
+### KD-OPS-06: Ingest and delete handlers block the event loop
+* **Location:** `ultimate_ui.py` `/process`, `/process-file`, `/delete-document` (async handlers with blocking Redis, workflow and Milvus calls)
+* **Severity:** LOW
+* **Current behavior:** each call stalls other requests for its duration (short compared with search).
+* **Recommended change:** run the blocking parts in a thread pool, as done for `/search`. Deferred at Phase 1A sign-off to a separate operational-hardening milestone.
+
 ### KD-MLV-01: Destructive auto-migration (FIXED in `95ca5ca`)
 * **Location:** `src/vector_db_milvus_server.py:221-271`
 * **Severity:** CRITICAL (data loss)
@@ -1071,6 +1081,28 @@ Format per issue: Issue, Location, Severity, Why it matters, Current behavior, R
 * **Recommended change:** do not simply restore the name. Decide per domain profile: the legacy profile restores `LOCATION_PEERS` and re-enables the stack under the golden set; the generic (Xerox) profile keeps a small, tested query analyzer instead.
 * **Regression risk:** very high either way; restoring it changes ranking for most queries.
 * **How to test:** `test_enhance_query_runs` (strict xfail); golden set comparison before and after.
+
+### KD-OPS-07: A duplicate ingest is reported as success
+* **Location:** `src/ultimate_tasks.py:449-516` (per-file Redis lock, 3 h TTL, heartbeat-based stale recovery)
+* **Severity:** LOW
+* **Current behavior:** if a previous task for the same tenant and file id still looks alive (for example a worker killed moments ago), the new task returns `success: true, skipped: true` and indexes nothing. Observed in testing after killing a run mid-ingest (INFERRED from the symptom; the lock path matches).
+* **Recommended change:** report `skipped` as its own task state so callers do not treat it as indexed.
+
+### KD-SRCH-12: No exact-text retrieval path
+* **Location:** `ultimate_ui.py:3561-3577` (phrase only in the sort key); content-scan supplement dead (`:3930-4100`); `vector_db_milvus_server.py:601-605` (50-chunk cap)
+* **Severity:** HIGH (functional)
+* **Current behavior:** an exact phrase in a document outside the vector top 50 is never returned (VERIFIED with real MPNet: needle ranked 61st of 61).
+* **Recommended change:** a lexical retriever over chunk text, fused with vector results. See `docs/SEARCH_FORENSICS.md` section 10.
+
+### KD-SRCH-13: Default `both` mode never runs the semantic path
+* **Location:** `ultimate_ui.py:3301, 3318` (`needs_semantic` comes from the dead `enhance_query`)
+* **Severity:** MEDIUM
+* **Current behavior:** default search is vector search plus the phrase tiebreak (VERIFIED: every result has `search_method=vector`).
+
+### KD-SRCH-14: spaCy fallback NER overwritten
+* **Location:** `src/semantic/semantic_pipeline.py:495-502`
+* **Severity:** LOW
+* **Current behavior:** `self.ner = None` runs after the `en_core_web_sm` fallback loads (TRACED).
 
 ---
 

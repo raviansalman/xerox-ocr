@@ -60,3 +60,24 @@ To see why each known defect fails right now: `pytest --runxfail --tb=line`.
 * `integration/test_search_regression.py`: "FOR IMMEDIATE RELEASE", "press release",
   "Lisa Riordan", "StorageChain" rank the press release first in vector, semantic and both modes;
   tenants with well-formed ids never see each other's documents.
+
+## Golden search baseline
+
+`tests/golden/cases.py` defines a 73-document, 4-tenant corpus and 45 graded cases (exact phrase, keyword,
+joined form, word boundary, person/entity, semantic paraphrase, OCR-noisy, filename, Arabic, no-result, tenant,
+scope and injection). `integration/test_golden_search.py` runs them in all three search modes through `/search`:
+
+* every case, every mode: no document from another tenant (hard failure);
+* the pass/fail map must equal `tests/golden/baseline_<GOLDEN_EMBEDDER>.json`. A case that starts passing
+  also fails the test, so search changes are always deliberate. Re-record with `GOLDEN_RECORD=1`.
+
+CI uses the stand-in embedder (`baseline_standin.json`). The real-model reference is `baseline_mpnet.json`:
+
+```bash
+# serve real all-mpnet-base-v2 with src/embedder_service.py on :18090, then
+RUN_INTEGRATION=1 GOLDEN_EMBEDDER=mpnet EMBEDDER_URL=http://127.0.0.1:18090/embed \
+  EMBEDDER_SEARCH_URL=http://127.0.0.1:18090/embed pytest tests/integration/test_golden_search.py
+```
+
+The full per-case report (top 5, scores, methods, latency) is written to `.pytest_cache/golden_<embedder>.json`.
+Results and interpretation: `docs/SEARCH_FORENSICS.md` section 5.
