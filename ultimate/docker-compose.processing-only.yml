@@ -33,7 +33,7 @@ services:
     environment:
       PYTHONPATH: /app
       TESSERACT_CMD: /usr/bin/tesseract
-      REDIS_URL: redis://redis:6379/0
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       # Must match Celery workers: they listen to ultimate_* not ultimate_*_u0..u7
       QUEUE_SHARD_COUNT: "0"
       SEARCH_DEFAULT_METHOD: both
@@ -107,7 +107,7 @@ services:
       resources:
         limits: { memory: 1200M, cpus: "1.0" }
     env_file: ["${ULTIMATE_ENV_FILE:-docker.staging.env}"]
-    environment: { PYTHONPATH: /app, REDIS_URL: "redis://redis:6379/0" }
+    environment: { PYTHONPATH: /app, REDIS_URL: "redis://:${REDIS_PASSWORD}@redis:6379/0" }
     volumes: ["./temp_uploads:/app/temp_uploads", "./logs:/app/logs", "./data:/app/data", "./src:/app/src"]
     depends_on: { milvus: { condition: service_healthy }, redis: { condition: service_healthy } }
     networks: [ultimate-processing]
@@ -121,7 +121,7 @@ services:
       resources:
         limits: { memory: 1500M, cpus: "1.0" }
     env_file: ["${ULTIMATE_ENV_FILE:-docker.staging.env}"]
-    environment: { PYTHONPATH: /app, REDIS_URL: "redis://redis:6379/0" }
+    environment: { PYTHONPATH: /app, REDIS_URL: "redis://:${REDIS_PASSWORD}@redis:6379/0" }
     volumes: ["./temp_uploads:/app/temp_uploads", "./logs:/app/logs", "./data:/app/data", "./src:/app/src"]
     depends_on: { milvus: { condition: service_healthy }, redis: { condition: service_healthy } }
     networks: [ultimate-processing]
@@ -135,7 +135,7 @@ services:
       resources:
         limits: { memory: 1000M, cpus: "0.7" }
     env_file: ["${ULTIMATE_ENV_FILE:-docker.staging.env}"]
-    environment: { PYTHONPATH: /app, REDIS_URL: "redis://redis:6379/0" }
+    environment: { PYTHONPATH: /app, REDIS_URL: "redis://:${REDIS_PASSWORD}@redis:6379/0" }
     volumes: ["./temp_uploads:/app/temp_uploads", "./logs:/app/logs", "./data:/app/data", "./src:/app/src"]
     depends_on: { milvus: { condition: service_healthy }, redis: { condition: service_healthy } }
     networks: [ultimate-processing]
@@ -149,7 +149,7 @@ services:
       resources:
         limits: { memory: 1000M, cpus: "0.7" }
     env_file: ["${ULTIMATE_ENV_FILE:-docker.staging.env}"]
-    environment: { PYTHONPATH: /app, REDIS_URL: "redis://redis:6379/0" }
+    environment: { PYTHONPATH: /app, REDIS_URL: "redis://:${REDIS_PASSWORD}@redis:6379/0" }
     volumes: ["./temp_uploads:/app/temp_uploads", "./logs:/app/logs", "./data:/app/data", "./src:/app/src"]
     depends_on: { milvus: { condition: service_healthy }, redis: { condition: service_healthy } }
     networks: [ultimate-processing]
@@ -163,7 +163,7 @@ services:
       resources:
         limits: { memory: 1500M, cpus: "1.0" }
     env_file: ["${ULTIMATE_ENV_FILE:-docker.staging.env}"]
-    environment: { PYTHONPATH: /app, REDIS_URL: "redis://redis:6379/0", SKIP_IMAGE_CAPTIONING_IN_PROCESSOR: "true" }
+    environment: { PYTHONPATH: /app, REDIS_URL: "redis://:${REDIS_PASSWORD}@redis:6379/0", SKIP_IMAGE_CAPTIONING_IN_PROCESSOR: "true" }
     volumes: ["./temp_uploads:/app/temp_uploads", "./logs:/app/logs", "./data:/app/data", "./src:/app/src"]
     depends_on: { milvus: { condition: service_healthy }, redis: { condition: service_healthy } }
     networks: [ultimate-processing]
@@ -178,7 +178,7 @@ services:
       resources:
         limits: { memory: 1500M, cpus: "1.0" }
     env_file: ["${ULTIMATE_ENV_FILE:-docker.staging.env}"]
-    environment: { PYTHONPATH: /app, REDIS_URL: "redis://redis:6379/0" }
+    environment: { PYTHONPATH: /app, REDIS_URL: "redis://:${REDIS_PASSWORD}@redis:6379/0" }
     volumes: ["./temp_uploads:/app/temp_uploads", "./logs:/app/logs", "./data:/app/data", "./src:/app/src"]
     depends_on: { milvus: { condition: service_healthy }, redis: { condition: service_healthy } }
     networks: [ultimate-processing]
@@ -196,9 +196,11 @@ services:
       - MINIO_ADDRESS=localhost:9000
     volumes:
       - ./data/milvus:/var/lib/milvus
+    # Bound to loopback unless DATASTORE_BIND_ADDR is set to a PRIVATE address the search server
+    # can reach (never 0.0.0.0 or a public IP; Milvus has no authentication configured).
     ports:
-      - "19530:19530"
-      - "9091:9091"
+      - "${DATASTORE_BIND_ADDR:-127.0.0.1}:19530:19530"
+      - "${DATASTORE_BIND_ADDR:-127.0.0.1}:9091:9091"
     deploy:
       resources:
         limits:
@@ -219,9 +221,10 @@ services:
   redis:
     container_name: ultimate-processing-redis
     image: redis:7-alpine
-    command: ["redis-server", "--appendonly", "yes"]
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?Set REDIS_PASSWORD}"]
+    environment: { REDISCLI_AUTH: "${REDIS_PASSWORD}" }
     ports:
-      - "6379:6379"
+      - "${DATASTORE_BIND_ADDR:-127.0.0.1}:6379:6379"
     volumes:
       - ./data/redis:/data
     deploy:

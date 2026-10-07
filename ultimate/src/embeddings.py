@@ -149,9 +149,9 @@ class EmbeddingGenerator:
         """Load embedding cache from file."""
         try:
             if Path(cache_file).exists():
-                with open(cache_file, "rb") as f:
-                    cache_data = np.load(f, allow_pickle=True)
-                    return dict(cache_data.item())
+                # Plain arrays only: never unpickle cache files.
+                with np.load(cache_file, allow_pickle=False) as data:
+                    return dict(zip(data["keys"].tolist(), data["vecs"]))
         except Exception as e:
             logger.warning(f"Failed to load embedding cache: {e}")
         return {}
@@ -159,8 +159,11 @@ class EmbeddingGenerator:
     def _save_embedding_cache(self, cache: Dict[str, np.ndarray], cache_file: str):
         """Save embedding cache to file."""
         try:
+            if not cache:
+                return
             with open(cache_file, "wb") as f:
-                np.save(f, cache)
+                np.savez(f, keys=np.array(list(cache.keys())),
+                         vecs=np.stack(list(cache.values())).astype(np.float32))
         except Exception as e:
             logger.warning(f"Failed to save embedding cache: {e}")
 
@@ -178,7 +181,7 @@ class EmbeddingGenerator:
         start_time = time.time()
 
         cache: Dict[str, np.ndarray] = {}
-        cache_file = Path(self.cache_dir) / "embeddings_cache.npy"
+        cache_file = Path(self.cache_dir) / "embeddings_cache.npz"
         if use_cache:
             cache = self._load_embedding_cache(str(cache_file))
 

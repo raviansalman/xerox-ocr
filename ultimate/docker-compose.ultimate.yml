@@ -31,7 +31,7 @@ services:
     environment:
       PYTHONPATH: /app
       TESSERACT_CMD: /usr/bin/tesseract
-      REDIS_URL: redis://redis:6379/0
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       QUEUE_SHARD_COUNT: "0"
       EMBEDDER_SEARCH_URL: http://ultimate-embedder-search:8080/embed
       SEMANTIC_STRICTNESS: precision
@@ -68,7 +68,7 @@ services:
       replicas: 0
       resources: { limits: { memory: 1200M } }
     env_file: [ "${ULTIMATE_ENV_FILE:-docker.staging.env}" ]
-    environment: { PYTHONPATH: /app, REDIS_URL: 'redis://redis:6379/0' }
+    environment: { PYTHONPATH: /app, REDIS_URL: 'redis://:${REDIS_PASSWORD}@redis:6379/0' }
     volumes: [ "./temp_uploads:/app/temp_uploads", "./logs:/app/logs", "./data:/app/data", "./src:/app/src" ]
     depends_on:
       - milvus
@@ -83,7 +83,7 @@ services:
       replicas: 0
       resources: { limits: { memory: 2.0G, cpus: '0.8' } }
     env_file: [ "${ULTIMATE_ENV_FILE:-docker.staging.env}" ]
-    environment: { PYTHONPATH: /app, REDIS_URL: 'redis://redis:6379/0' }
+    environment: { PYTHONPATH: /app, REDIS_URL: 'redis://:${REDIS_PASSWORD}@redis:6379/0' }
     volumes: [ "./temp_uploads:/app/temp_uploads", "./logs:/app/logs", "./data:/app/data", "./src:/app/src" ]
     depends_on:
       - milvus
@@ -96,7 +96,7 @@ services:
     command: [ "/bin/bash", "-c", "export PYTHONPATH=/app && exec celery -A src.ultimate_celery_app worker --loglevel=info --pool=solo --concurrency=1 --prefetch-multiplier=1 --queues=ultimate_word,ultimate_word_large --max-tasks-per-child=10" ]
     deploy: { replicas: 0, resources: { limits: { memory: 600M, cpus: '0.5' } } }
     env_file: [ "${ULTIMATE_ENV_FILE:-docker.staging.env}" ]
-    environment: { PYTHONPATH: /app, REDIS_URL: 'redis://redis:6379/0' }
+    environment: { PYTHONPATH: /app, REDIS_URL: 'redis://:${REDIS_PASSWORD}@redis:6379/0' }
     volumes: [ "./temp_uploads:/app/temp_uploads", "./logs:/app/logs", "./data:/app/data", "./src:/app/src" ]
     depends_on:
       - milvus
@@ -109,7 +109,7 @@ services:
     command: [ "/bin/bash", "-c", "export PYTHONPATH=/app && exec celery -A src.ultimate_celery_app worker --loglevel=info --pool=solo --concurrency=1 --prefetch-multiplier=1 --queues=ultimate_powerpoint,ultimate_powerpoint_large --max-tasks-per-child=10" ]
     deploy: { replicas: 0, resources: { limits: { memory: 800M, cpus: '0.5' } } }
     env_file: [ "${ULTIMATE_ENV_FILE:-docker.staging.env}" ]
-    environment: { PYTHONPATH: /app, REDIS_URL: 'redis://redis:6379/0' }
+    environment: { PYTHONPATH: /app, REDIS_URL: 'redis://:${REDIS_PASSWORD}@redis:6379/0' }
     volumes: [ "./temp_uploads:/app/temp_uploads", "./logs:/app/logs", "./data:/app/data", "./src:/app/src" ]
     depends_on:
       - milvus
@@ -122,7 +122,7 @@ services:
     command: [ "/bin/bash", "-c", "export PYTHONPATH=/app && exec celery -A src.ultimate_celery_app worker --loglevel=info --pool=solo --concurrency=1 --prefetch-multiplier=1 --queues=ultimate_image,ultimate_image_large --max-tasks-per-child=10" ]
     deploy: { replicas: 0, resources: { limits: { memory: 1G, cpus: '0.8' } } }
     env_file: [ "${ULTIMATE_ENV_FILE:-docker.staging.env}" ]
-    environment: { PYTHONPATH: /app, REDIS_URL: 'redis://redis:6379/0', SKIP_IMAGE_CAPTIONING_IN_PROCESSOR: 'true' }
+    environment: { PYTHONPATH: /app, REDIS_URL: 'redis://:${REDIS_PASSWORD}@redis:6379/0', SKIP_IMAGE_CAPTIONING_IN_PROCESSOR: 'true' }
     volumes: [ "./temp_uploads:/app/temp_uploads", "./logs:/app/logs", "./data:/app/data", "./src:/app/src" ]
     depends_on:
       - milvus
@@ -137,7 +137,7 @@ services:
       replicas: 0
       resources: { limits: { memory: 1200M } }
     env_file: [ "${ULTIMATE_ENV_FILE:-docker.staging.env}" ]
-    environment: { PYTHONPATH: /app, REDIS_URL: 'redis://redis:6379/0' }
+    environment: { PYTHONPATH: /app, REDIS_URL: 'redis://:${REDIS_PASSWORD}@redis:6379/0' }
     volumes: [ "./temp_uploads:/app/temp_uploads", "./logs:/app/logs", "./data:/app/data", "./src:/app/src" ]
     depends_on: { milvus: { condition: service_healthy }, redis: { condition: service_healthy } }
     networks: [ ultimate-search ]
@@ -198,9 +198,9 @@ services:
 
   redis:
     image: redis:7-alpine
-    command: [ "redis-server", "--appendonly", "yes" ]
-    ports:
-      - "6379:6379"
+    # Not published to the host. Password required (REDIS_PASSWORD must be URL-safe, e.g. hex).
+    command: [ "redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?Set REDIS_PASSWORD}" ]
+    environment: { REDISCLI_AUTH: "${REDIS_PASSWORD}" }
     volumes:
       - ./data/redis:/data
     deploy: { resources: { limits: { memory: 200M } } }

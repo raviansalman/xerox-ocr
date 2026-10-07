@@ -1,20 +1,14 @@
 # Search-only deployment (standalone file).
 # Deploy this file by itself on the search server.
 #
-# Milvus + Redis point to the PROCESSING server (172.31.90.23 private IP / 52.22.242.248 public).
-# Override at deploy time via env vars if the IPs change:
-#   MILVUS_HOST=<processing-ip>  REDIS_URL=redis://<processing-ip>:6379/0
+# Milvus + Redis point to the PROCESSING server's PRIVATE address (required, no default):
+#   MILVUS_HOST=<processing-private-ip>  REDIS_URL=redis://:<REDIS_PASSWORD>@<processing-private-ip>:6379/0
 #
 # Run:
 #   docker-compose -f docker-compose.search-only.yml up -d --build
 #   # or via universal_deploy.sh (STAGING_ROLE=search, ULTIMATE_ENV_FILE=...)
 #
-# ── Staging processing server IPs (update these if the server changes) ───────
-# Private (preferred — stays stable across reboots, lower latency, no SG cost):
-#   172.31.90.23
-# Public (fallback if private not reachable):
-#   52.22.242.248
-# ─────────────────────────────────────────────────────────────────────────────
+# Never point these at a public IP: Redis and Milvus must only be reachable on a private network.
 # Compose project name: docker-compose v1.x ignores top-level `name:` — use explicit -p.
 #   universal_deploy.sh: -p ultimate-search
 #   Manual:   export COMPOSE_PROJECT_NAME=ultimate-search
@@ -55,20 +49,14 @@ services:
       # These override ULTIMATE_ENV_FILE values (MILVUS_HOST=milvus / REDIS_HOST=redis)
       # which only exist on the processing server as local Docker service names.
       #
-      # IMPORTANT: The private IP (172.31.90.23) is BLOCKED by the AWS Security
-      # Group — only the public IP (52.22.242.248) is open on 19530 and 6379.
-      # To switch to private IP, add an inbound SG rule on the processing server
-      # allowing TCP 19530 + 6379 from the search server's security group.
-      #
-      # WARNING: 52.22.242.248 is a DYNAMIC public IP. If the processing server
-      # is stopped and restarted it will get a new IP. Assign an AWS Elastic IP
-      # to the processing server to make this permanent.
-      MILVUS_HOST: ${MILVUS_HOST:-52.22.242.248}
+      # Use the processing server's private address; allow TCP 19530 + 6379 only
+      # from the search server (security group / firewall), never from the internet.
+      MILVUS_HOST: ${MILVUS_HOST:?Set MILVUS_HOST to the processing server private address}
       MILVUS_PORT: ${MILVUS_PORT:-19530}
-      REDIS_URL: ${REDIS_URL:-redis://52.22.242.248:6379/0}
+      REDIS_URL: ${REDIS_URL:?Set REDIS_URL (redis://:password@private-host:6379/0)}
       # REDIS_HOST/PORT/DB mirror REDIS_URL for code paths that build the URL
       # from individual parts (avoids env file "redis" hostname being used when remote).
-      REDIS_HOST: ${REDIS_HOST:-52.22.242.248}
+      REDIS_HOST: ${REDIS_HOST:-}
       REDIS_PORT: ${REDIS_PORT:-6379}
       REDIS_DB: ${REDIS_DB:-0}
       # ──────────────────────────────────────────────────────────────────────

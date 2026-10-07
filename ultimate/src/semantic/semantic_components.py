@@ -181,6 +181,88 @@ def _thread_safe(method):
     return wrapper
 
 
+# ============================================================================
+# Safe serialization for MetadataIndex state (replaces pickle)
+# ============================================================================
+# The state crosses a network boundary (Redis) and shared disk, so it must never be
+# deserialized with pickle. This is plain JSON with tags for the few non-JSON types the
+# index uses (tuples, sets, non-string dict keys, dates). Anything else is refused.
+
+import json as _json
+from datetime import date as _date, datetime as _datetime
+
+METADATA_STATE_VERSION = "6.0-json"
+
+
+def _state_encode(v: Any) -> Any:
+    if v is None or isinstance(v, (bool, int, float, str)):
+        return v
+    if isinstance(v, _datetime):
+        return {"__datetime__": v.isoformat()}
+    if isinstance(v, _date):
+        return {"__date__": v.isoformat()}
+    if isinstance(v, tuple):
+        return {"__tuple__": [_state_encode(x) for x in v]}
+    if isinstance(v, (set, frozenset)):
+        return {"__set__": [_state_encode(x) for x in sorted(v, key=repr)]}
+    if isinstance(v, list):
+        return [_state_encode(x) for x in v]
+    if isinstance(v, dict):
+        if all(isinstance(k, str) and not k.startswith("__") for k in v):
+            return {k: _state_encode(x) for k, x in v.items()}
+        return {"__map__": [[_state_encode(k), _state_encode(x)] for k, x in v.items()]}
+    if isinstance(v, np.generic):
+        return v.item()
+    raise TypeError(f"MetadataIndex state: unsupported type {type(v).__name__}")
+
+
+def _state_decode(v: Any) -> Any:
+    if isinstance(v, list):
+        return [_state_decode(x) for x in v]
+    if isinstance(v, dict):
+        if len(v) == 1:
+            (tag, inner), = v.items()
+            if tag == "__tuple__":
+                return tuple(_state_decode(x) for x in inner)
+            if tag == "__set__":
+                return set(_state_decode(x) for x in inner)
+            if tag == "__map__":
+                return {_state_decode(k): _state_decode(x) for k, x in inner}
+            if tag == "__date__":
+                return _date.fromisoformat(inner)
+            if tag == "__datetime__":
+                return _datetime.fromisoformat(inner)
+        return {k: _state_decode(x) for k, x in v.items()}
+    return v
+
+
+def dump_metadata_state(state: Dict[str, Any]) -> bytes:
+    return _json.dumps(_state_encode(state), separators=(",", ":")).encode("utf-8")
+
+
+def load_metadata_state(raw: bytes) -> Optional[Dict[str, Any]]:
+    """Parse a serialized state; returns None for anything that is not our JSON format."""
+    try:
+        state = _state_decode(_json.loads(raw.decode("utf-8")))
+    except Exception:
+        return None
+    if not isinstance(state, dict) or state.get("version") != METADATA_STATE_VERSION:
+        return None
+    return state
+
+
+_CACHE_UID_RE = re.compile(r"^[A-Za-z0-9_.:@-]{1,128}$")
+
+
+def metadata_cache_path(user_id: str, cache_dir: Optional[str] = None) -> Optional[str]:
+    """Disk cache path for a tenant, or None if the id is unsafe to use in a filename."""
+    uid = str(user_id or "")
+    if not _CACHE_UID_RE.match(uid) or uid in (".", ".."):
+        return None
+    cache_dir = cache_dir or os.getenv("METADATA_CACHE_DIR", "data/metadata_cache")
+    return os.path.join(cache_dir, f"metadata_index_{uid}.json")
+
+
 class MetadataIndex:
     """
     UNIVERSAL METADATA INDEX v3.0 (Temporal-Ready)
@@ -970,7 +1052,8 @@ class MetadataIndex:
     # ------------------------------------------------------------------
 
     # ── Redis key helpers ─────────────────────────────────────────────────────
-    _REDIS_BLOB_KEY   = "metadata_index_blob:{user_id}"    # compressed pickle bytes
+    # "json" in the key name: blobs written by older pickle-based versions are never read.
+    _REDIS_BLOB_KEY   = "metadata_index_json:{user_id}"    # zlib-compressed JSON (see dump_metadata_state)
     _REDIS_VER_KEY    = "metadata_index_version:{user_id}" # integer version counter
     _REDIS_TTL        = 60 * 60 * 24 * 30                  # 30 days
 
@@ -988,15 +1071,40 @@ class MetadataIndex:
         except Exception:
             return None
 
+    def _state_dict(self, t0: float) -> Dict[str, Any]:
+        return {
+            "version": METADATA_STATE_VERSION,
+            "timestamp": t0,
+            "docs": self.docs,
+            "by_year": dict(self.by_year),
+            "by_year_range": dict(self.by_year_range),
+            "by_month_year": dict(self.by_month_year),
+            "by_full_date": dict(self.by_full_date),
+            "by_month_only": dict(self.by_month_only),
+            "by_location": dict(self.by_location),
+            "by_person": dict(self.by_person),
+            "by_org": dict(self.by_org),
+            "by_clause": dict(self.by_clause),
+            "by_skill": dict(self.by_skill),
+            "by_amount": dict(self.by_amount),
+            "by_category": dict(self.by_category),
+            "by_signer": dict(self.by_signer),
+            "by_document_type": dict(self.by_document_type),
+            "by_expiry": dict(self.by_expiry),
+            "by_expired": self.by_expired,
+            "by_temporal_hash": self.by_temporal_hash,
+        }
+
     @_thread_safe
     def save_to_disk(self, user_id: str, cache_dir: str = None) -> bool:
         """Persist the built metadata index to disk and push to Redis so the
         dedicated search server picks it up automatically (no file transfer needed)."""
-        import os, pickle, time, zlib
-        if not cache_dir:
-            cache_dir = os.getenv("METADATA_CACHE_DIR", "data/metadata_cache")
-        os.makedirs(cache_dir, exist_ok=True)
-        cache_file = os.path.join(cache_dir, f"metadata_index_{user_id}.pkl")
+        import time, zlib
+        cache_file = metadata_cache_path(user_id, cache_dir)
+        if cache_file is None:
+            logger.warning("[CACHE] Not caching metadata index: unsafe user id")
+            return False
+        os.makedirs(os.path.dirname(cache_file), exist_ok=True)
         t0 = time.time()
 
         # Never persist an empty index — it would corrupt both disk and Redis
@@ -1005,31 +1113,11 @@ class MetadataIndex:
             return False
 
         try:
-            state = {
-                "version": "5.0.8",
-                "timestamp": t0,
-                "docs": self.docs,
-                "by_year": dict(self.by_year),
-                "by_year_range": dict(self.by_year_range),
-                "by_month_year": dict(self.by_month_year),
-                "by_full_date": dict(self.by_full_date),
-                "by_month_only": dict(self.by_month_only),
-                "by_location": dict(self.by_location),
-                "by_person": dict(self.by_person),
-                "by_org": dict(self.by_org),
-                "by_clause": dict(self.by_clause),
-                "by_skill": dict(self.by_skill),
-                "by_amount": dict(self.by_amount),
-                "by_category": dict(self.by_category),
-                "by_signer": dict(self.by_signer),
-                "by_document_type": dict(self.by_document_type),
-                "by_expiry": dict(self.by_expiry),
-                "by_expired": self.by_expired,
-                "by_temporal_hash": self.by_temporal_hash,
-            }
-            raw = pickle.dumps(state)
-            with open(cache_file, "wb") as f:
+            raw = dump_metadata_state(self._state_dict(t0))
+            tmp = cache_file + ".tmp"
+            with open(tmp, "wb") as f:
                 f.write(raw)
+            os.replace(tmp, cache_file)
             elapsed_ms = (time.time() - t0) * 1000
             logger.info(
                 f"[CACHE] Saved metadata index for user={user_id} → {cache_file} "
@@ -1070,10 +1158,10 @@ class MetadataIndex:
 
     @classmethod
     def _load_state_from_redis(cls, user_id: str):
-        """Try to load the raw state dict from Redis. Returns (state_dict, score)
-        or (None, -1) on any miss/error."""
+        """Try to load the state dict from Redis. Returns (state_dict, score)
+        or (None, -1) on any miss/error. Only our JSON format is accepted."""
         try:
-            import zlib, pickle as _pickle
+            import zlib
             rc = cls._get_redis_client()
             if not rc:
                 return None, -1
@@ -1081,7 +1169,10 @@ class MetadataIndex:
             compressed = rc.get(blob_key)
             if not compressed:
                 return None, -1
-            state = _pickle.loads(zlib.decompress(compressed))
+            state = load_metadata_state(zlib.decompress(compressed))
+            if state is None:
+                logger.warning(f"[CACHE] Ignoring unreadable metadata index blob for user={user_id}")
+                return None, -1
             # Score = timestamp stored in the changed-users sorted set
             score = rc.zscore("metadata_index_changed_users", user_id) or 0
             return state, score
@@ -1112,61 +1203,64 @@ class MetadataIndex:
         inst.by_temporal_hash = state.get("by_temporal_hash", {})
         return inst
 
+    @staticmethod
+    def _read_disk_state(cache_file: str) -> Optional[Dict[str, Any]]:
+        try:
+            with open(cache_file, "rb") as f:
+                return load_metadata_state(f.read())
+        except OSError:
+            return None
+
+    @staticmethod
+    def write_disk_state(user_id: str, state: Dict[str, Any], cache_dir: str = None) -> bool:
+        cache_file = metadata_cache_path(user_id, cache_dir)
+        if cache_file is None:
+            return False
+        try:
+            os.makedirs(os.path.dirname(cache_file), exist_ok=True)
+            tmp = cache_file + ".tmp"
+            with open(tmp, "wb") as f:
+                f.write(dump_metadata_state(state))
+            os.replace(tmp, cache_file)
+            return True
+        except Exception:
+            return False
+
     @classmethod
     def load_from_disk(cls, user_id: str, cache_dir: str = None):
         """Restore a previously saved metadata index.
         Priority: Redis (always freshest) → disk cache → None.
         When Redis has a newer version than disk, it is used and the local
         disk cache is refreshed so future restarts remain sub-second."""
-        import os, pickle, time
-        if not cache_dir:
-            cache_dir = os.getenv("METADATA_CACHE_DIR", "data/metadata_cache")
-        cache_file = os.path.join(cache_dir, f"metadata_index_{user_id}.pkl")
+        import time
+        cache_file = metadata_cache_path(user_id, cache_dir)
+        if cache_file is None:
+            return None
         t0 = time.time()
 
         # ── 1. Try Redis first (shared by processing + search server) ──────────
         try:
-                redis_state, redis_score = cls._load_state_from_redis(user_id)
-                if redis_state and redis_state.get("version") == "5.0.8":
-                    # Check if Redis is newer than the disk file we already have
-                    disk_ts = 0.0
-                    if os.path.exists(cache_file):
-                        try:
-                            with open(cache_file, "rb") as _f:
-                                _disk = pickle.load(_f)
-                            disk_ts = _disk.get("timestamp", 0.0)
-                        except Exception:
-                            disk_ts = 0.0
-
-                    redis_ts = redis_state.get("timestamp", 0.0)
-                    if redis_ts > disk_ts or not os.path.exists(cache_file):
-                        inst = cls._build_instance_from_state(redis_state)
-                        logger.info(
-                            f"[CACHE] Loaded metadata index from Redis for user={user_id} "
-                            f"({len(inst.docs)} docs, {(time.time()-t0)*1000:.0f}ms)"
-                        )
-                    # Write back to local disk so next restart is instant
-                    try:
-                        os.makedirs(cache_dir, exist_ok=True)
-                        with open(cache_file, "wb") as _f:
-                            pickle.dump(redis_state, _f)
-                        logger.debug(f"[CACHE] Refreshed disk cache from Redis for user={user_id}")
-                    except Exception:
-                        pass
+            redis_state, _redis_score = cls._load_state_from_redis(user_id)
+            if redis_state:
+                disk_state = cls._read_disk_state(cache_file)
+                disk_ts = (disk_state or {}).get("timestamp", 0.0)
+                if redis_state.get("timestamp", 0.0) >= disk_ts:
+                    inst = cls._build_instance_from_state(redis_state)
+                    logger.info(
+                        f"[CACHE] Loaded metadata index from Redis for user={user_id} "
+                        f"({len(inst.docs)} docs, {(time.time()-t0)*1000:.0f}ms)"
+                    )
+                    cls.write_disk_state(user_id, redis_state, cache_dir)
                     return inst
         except Exception as re:
             logger.debug(f"[CACHE] Redis check skipped for user={user_id}: {re}")
         # ────────────────────────────────────────────────────────────────────────
 
         # ── 2. Fall back to local disk cache ────────────────────────────────────
-        if not os.path.exists(cache_file):
+        state = cls._read_disk_state(cache_file)
+        if state is None:
             return None
         try:
-            with open(cache_file, "rb") as f:
-                state = pickle.load(f)
-            if state.get("version") != "5.0.8":
-                logger.info(f"[CACHE] Stale version for user={user_id}, will rebuild")
-                return None
             inst = cls._build_instance_from_state(state)
             logger.info(
                 f"[CACHE] Loaded metadata index for user={user_id} from {cache_file} "

@@ -4759,9 +4759,9 @@ class SemanticPipeline:
             self._metadata_index_built_users.discard(user_id)
 
             # 3. Delete disk cache so next cold start rebuilds cleanly
-            cache_dir = os.environ.get("METADATA_CACHE_DIR", "data/metadata_cache")
-            cache_path = os.path.join(cache_dir, f"metadata_index_{user_id}.pkl")
-            if os.path.exists(cache_path):
+            from .semantic_components import metadata_cache_path
+            cache_path = metadata_cache_path(user_id)
+            if cache_path and os.path.exists(cache_path):
                 os.remove(cache_path)
                 logger.info(f"[DELETE] Invalidated disk cache {cache_path} for user={user_id}")
             else:
@@ -4818,7 +4818,7 @@ class SemanticPipeline:
         pipeline_ref = self
 
         def _global_watch():
-            import time, os, pickle
+            import time, os
             from .semantic_components import MetadataIndex
 
             cache_dir = os.environ.get("METADATA_CACHE_DIR", "data/metadata_cache")
@@ -4850,7 +4850,7 @@ class SemanticPipeline:
                             f"(score {last:.0f} → {score:.0f}), reloading…"
                         )
                         redis_state, _ = MetadataIndex._load_state_from_redis(uid)
-                        if not redis_state or redis_state.get("version") != "5.0.8":
+                        if not redis_state:
                             seen_scores[uid] = score
                             continue
 
@@ -4864,12 +4864,7 @@ class SemanticPipeline:
                         pipeline_ref._metadata_index_built_users.discard(uid)
 
                         # Refresh local disk cache
-                        try:
-                            os.makedirs(cache_dir, exist_ok=True)
-                            with open(os.path.join(cache_dir, f"metadata_index_{uid}.pkl"), "wb") as _f:
-                                pickle.dump(redis_state, _f)
-                        except Exception:
-                            pass
+                        MetadataIndex.write_disk_state(uid, redis_state, cache_dir)
 
                         seen_scores[uid] = score
                         logger.info(

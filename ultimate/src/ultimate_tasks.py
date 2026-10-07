@@ -1076,11 +1076,12 @@ def rebuild_user_metadata_index_task(self, user_id: str) -> Dict[str, Any]:
     def _run() -> Dict[str, Any]:
         import os as _os
 
-        cache_dir = _os.environ.get("METADATA_CACHE_DIR", "data/metadata_cache")
-        pkl = _os.path.join(cache_dir, f"metadata_index_{user_id}.pkl")
+        from src.semantic.semantic_components import metadata_cache_path
+
+        cache_file = metadata_cache_path(user_id)
         try:
-            if _os.path.isfile(pkl):
-                _os.remove(pkl)
+            if cache_file and _os.path.isfile(cache_file):
+                _os.remove(cache_file)
         except OSError:
             pass
         from src.semantic.semantic_pipeline import SemanticPipeline

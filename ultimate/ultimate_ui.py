@@ -4678,11 +4678,11 @@ def create_fastapi_app():
                                 logger.warning(f"[PREWARM] Primary user load failed: {_ue}")
                         else:
                             # Fallback: load the most-recently modified cache file
-                            pattern = os.path.join(cache_dir, "metadata_index_*.pkl")
+                            pattern = os.path.join(cache_dir, "metadata_index_*.json")
                             cache_files = sorted(_glob.glob(pattern), key=lambda p: -__import__("os").path.getmtime(p))
                             if cache_files:
                                 fname = __import__("os").path.basename(cache_files[0])
-                                uid = fname[len("metadata_index_"):-len(".pkl")]
+                                uid = fname[len("metadata_index_"):-len(".json")]
                                 if uid:
                                     try:
                                         engine_obj._ensure_metadata_index_for_user(uid)

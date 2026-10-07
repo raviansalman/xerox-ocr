@@ -713,11 +713,11 @@ write_search_generated() {
   # After deploy (restarts, docker start, etc.) the generated file is the
   # source of truth — shell env vars are gone after the initial compose up.
   #
-  # NOTE: Private IP (172.31.90.23) is blocked by SG — only public IP works.
+  # Use private addresses only; Redis and Milvus must not be reachable from the internet.
   # Pass MILVUS_HOST / REDIS_URL at deploy time if the public IP changes, e.g.:
   #   MILVUS_HOST=<new-ip> REDIS_URL=redis://<new-ip>:6379/0 STAGING_ROLE=search ./universal_deploy.sh
-  local GEN_MILVUS_HOST="${MILVUS_HOST:-52.22.242.248}"
-  local GEN_REDIS_URL="${REDIS_URL:-redis://52.22.242.248:6379/0}"
+  local GEN_MILVUS_HOST="${MILVUS_HOST:?Set MILVUS_HOST to the processing server private address}"
+  local GEN_REDIS_URL="${REDIS_URL:?Set REDIS_URL (redis://:password@private-host:6379/0)}"
   # Extract REDIS_HOST from REDIS_URL (strip redis:// prefix and port/db)
   local GEN_REDIS_HOST
   GEN_REDIS_HOST=$(echo "$GEN_REDIS_URL" | sed 's|redis://||' | cut -d: -f1 | cut -d/ -f1)

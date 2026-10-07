@@ -106,10 +106,10 @@ resolve_one_target() {
         : "${_HEALTH:?Set ULTIMATE_HEALTH_URL for production}"
         _DOCKER="${ULTIMATE_DOCKER_CMD:-sudo docker}"
       else
-        : "${_SSH:=ubuntu@54.157.180.97}"
+        : "${_SSH:?Set ULTIMATE_*_SSH for this role}"
         # After compose up with container_name: ultimate-search-api (see docker-compose.search-only.yml).
         : "${_CONTAINER:=ultimate-search-api}"
-        : "${_HEALTH:=http://54.157.180.97:8000/health}"
+        : "${_HEALTH:?Set the health URL for this role}"
         _DOCKER="${ULTIMATE_DOCKER_CMD:-docker}"
       fi
       ;;
@@ -123,9 +123,9 @@ resolve_one_target() {
         : "${_HEALTH:?Set ULTIMATE_PROCESSING_HEALTH_URL for production}"
         _DOCKER="${ULTIMATE_DOCKER_CMD:-sudo docker}"
       else
-        : "${_SSH:=ubuntu@52.22.242.248}"
+        : "${_SSH:?Set ULTIMATE_*_SSH for this role}"
         : "${_CONTAINER:=ultimate-processing-api}"
-        : "${_HEALTH:=http://52.22.242.248:8000/health}"
+        : "${_HEALTH:?Set the health URL for this role}"
         _DOCKER="${ULTIMATE_DOCKER_CMD:-sudo docker}"
       fi
       ;;
