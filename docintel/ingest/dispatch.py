@@ -107,6 +107,7 @@ def reap_stalled(stall_after_sec: float | None = None) -> dict:
     recorded) and fail the ones that keep stalling. One process reaps at a time."""
     s = get_settings()
     stall = s.task_time_limit_sec + 60 if stall_after_sec is None else stall_after_sec
+    silent = heartbeat_timeout()
     states = ["running", "queued"] if s.task_mode == "thread" else ["running"]   # Celery keeps queued work in Redis
     requeued, failed = [], []
     with get_db().system() as conn:
@@ -114,8 +115,9 @@ def reap_stalled(stall_after_sec: float | None = None) -> dict:
             return {"requeued": 0, "failed": 0}
         rows = conn.execute(
             "SELECT document_id, tenant_id, attempts FROM ingest_jobs WHERE state = ANY(%s) "
-            "AND coalesce(started_at, enqueued_at) < now() - make_interval(secs => %s) FOR UPDATE SKIP LOCKED",
-            (states, stall)).fetchall()
+            "AND (coalesce(started_at, enqueued_at) < now() - make_interval(secs => %s) "
+            "     OR (state = 'running' AND heartbeat_at < now() - make_interval(secs => %s))) FOR UPDATE SKIP LOCKED",
+            (states, stall, silent)).fetchall()
         with _lock:
             rows = [r for r in rows if str(r["document_id"]) not in _inflight]
         for r in rows:
@@ -152,11 +154,17 @@ def start_reaper(interval_sec: float = 60.0) -> threading.Event:
     return stop
 
 
+def heartbeat_timeout() -> int:
+    """Seconds without a heartbeat after which a running job's worker is taken to be gone."""
+    return max(120, 4 * get_settings().job_heartbeat_sec)
+
+
 def stalled_count() -> int:
     s = get_settings()
     with get_db().system() as conn:
         return conn.execute("SELECT count(*) AS n FROM ingest_jobs WHERE coalesce(started_at, enqueued_at) < "
-                            "now() - make_interval(secs => %s)", (s.task_time_limit_sec + 60,)).fetchone()["n"]
+                            "now() - make_interval(secs => %s) OR (state = 'running' AND heartbeat_at < "
+                            "now() - make_interval(secs => %s))", (s.task_time_limit_sec + 60, heartbeat_timeout())).fetchone()["n"]
 
 
 def queue_depth() -> dict:

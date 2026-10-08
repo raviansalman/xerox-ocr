@@ -38,9 +38,11 @@ worker; reprocessing; deletion from every table and the vector index; worker met
 | `thread` | One machine without Redis. Jobs run in a thread pool in the API process; unfinished jobs are recovered from `ingest_jobs` at start. One API process only (`docintel serve` refuses `--workers` above 1): processes cannot see each other's in-memory queues, and at 50,000 documents two processes reaped each other's waiting backlog and processed 11% of it twice. |
 | `inline` | Tests only. |
 
-In every mode a reaper in the API requeues jobs that stopped making progress for longer than
-`DOCINTEL_TASK_TIME_LIMIT_SEC` (a worker died, or a failure could not be recorded, for example on a full disk) and
-marks a document `failed` with the reason after five attempts.
+In every mode a reaper in the API requeues jobs that stopped making progress and marks a document `failed` with
+the reason after five attempts. A running job reports a heartbeat every `DOCINTEL_JOB_HEARTBEAT_SEC` (30 s), so a
+job whose worker died (killed, out of memory, machine lost) is requeued about 2 minutes after its last heartbeat;
+any other job is requeued once it is older than `DOCINTEL_TASK_TIME_LIMIT_SEC` (for example when its failure could
+not be recorded on a full disk).
 
 ## Sizing and scaling
 

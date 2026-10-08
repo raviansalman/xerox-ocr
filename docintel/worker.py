@@ -19,6 +19,9 @@ app.conf.update(
     worker_prefetch_multiplier=1,        # long tasks: do not hoard jobs
     task_default_queue=_s.ingest_queue,
     broker_connection_retry_on_startup=True,
+    # an unacknowledged job (its worker died) is redelivered after this; it must outlast the longest job. The
+    # heartbeat reaper usually requeues such a job within minutes, long before this.
+    broker_transport_options={"visibility_timeout": _s.task_time_limit_sec + 300},
     task_serializer="json", accept_content=["json"],
 )
 

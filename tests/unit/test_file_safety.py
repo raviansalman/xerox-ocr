@@ -168,3 +168,11 @@ def test_a_conversion_timeout_kills_every_process_it_started(tmp_path, monkeypat
         time.sleep(0.05)
     else:
         raise AssertionError("the converter's child process survived the timeout")
+
+
+def test_a_corrupted_pdf_fails_with_a_reason_instead_of_indexing_nothing(tmp_path):
+    """PyMuPDF repairs some damaged files into a document with no pages; that must not look indexed."""
+    p = tmp_path / "corrupt.pdf"
+    p.write_bytes(b"%PDF-1.7\n1 0 obj << /Type /Catalog >> garbage garbage\n%%EOF")
+    with pytest.raises(ParseError, match="corrupted PDF"):
+        parse_file(p, p.name)

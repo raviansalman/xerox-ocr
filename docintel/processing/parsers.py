@@ -185,6 +185,8 @@ def parse_pdf(path: Path) -> ParsedDocument:
     try:
         if doc.needs_pass:
             raise ParseError("password-protected PDF")
+        if doc.page_count == 0:                   # a damaged file that PyMuPDF "repaired" into nothing
+            raise ParseError("corrupted PDF: no readable pages")
         if doc.page_count > s.max_pages:
             raise ParseError(f"PDF has {doc.page_count} pages; limit is {s.max_pages}")
         pages: dict[int, Page] = {}

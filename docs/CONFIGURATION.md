@@ -49,6 +49,7 @@ can bypass row-level security.
 | `DOCINTEL_WORKER_THREADS` | CPU count | thread-mode workers |
 | `DOCINTEL_INGEST_QUEUE` | `docintel.ingest` | Celery queue |
 | `DOCINTEL_TASK_TIME_LIMIT_SEC` | 1800 | Celery hard limit per document |
+| `DOCINTEL_JOB_HEARTBEAT_SEC` | 30 | A running job marks itself alive this often; one silent for 4 beats (at least 2 minutes) is requeued |
 | **Processing** | | |
 | `DOCINTEL_OCR_LANGUAGES` | `eng` | Tesseract languages (the language packs must be installed) |
 | `DOCINTEL_OCR_DPI` | 250 | render resolution for scanned pages |

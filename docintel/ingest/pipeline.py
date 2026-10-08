@@ -11,7 +11,9 @@ import json
 import logging
 import shutil
 import tempfile
+import threading
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from typing import BinaryIO
@@ -151,7 +153,34 @@ def _key_fields(understanding: Understanding) -> list[str]:
     return out
 
 
+@contextmanager
+def _heartbeat(document_id: str):
+    """While the job runs, mark it alive every DOCINTEL_JOB_HEARTBEAT_SEC so the reaper can tell a slow job from
+    one whose worker died (it then requeues within minutes instead of after the whole task time limit)."""
+    stop = threading.Event()
+
+    def beat():
+        while not stop.wait(get_settings().job_heartbeat_sec):
+            try:
+                with get_db().system() as conn:
+                    conn.execute("UPDATE ingest_jobs SET heartbeat_at = now() WHERE document_id = %s", (document_id,))
+            except Exception:                             # a missed beat only makes the job look slower
+                logger.warning("job heartbeat failed", extra={"document_id": document_id}, exc_info=True)
+
+    t = threading.Thread(target=beat, name="job-heartbeat", daemon=True)
+    t.start()
+    try:
+        yield
+    finally:
+        stop.set()
+
+
 def process(tenant_id: str, document_id: str) -> dict:
+    with _heartbeat(document_id):
+        return _process(tenant_id, document_id)
+
+
+def _process(tenant_id: str, document_id: str) -> dict:
     """Process one document into its canonical model and every index. Raises TransientError for retryable
     dependency failures; any other failure marks the document failed with the reason. The document is marked
     indexed only after the database rows and the vectors are both written."""
@@ -160,8 +189,8 @@ def process(tenant_id: str, document_id: str) -> dict:
     started = time.perf_counter()
     timings: dict[str, float] = {}
     with db.system() as conn:
-        conn.execute("UPDATE ingest_jobs SET state = 'running', attempts = attempts + 1, started_at = now() "
-                     "WHERE document_id = %s", (document_id,))
+        conn.execute("UPDATE ingest_jobs SET state = 'running', attempts = attempts + 1, started_at = now(), "
+                     "heartbeat_at = now() WHERE document_id = %s", (document_id,))
     with db.tenant(tenant_id) as conn:
         doc = repo.get_document(conn, document_id)
         if doc is None:

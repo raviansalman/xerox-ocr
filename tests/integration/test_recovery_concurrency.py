@@ -280,3 +280,44 @@ def test_deleting_a_document_prunes_only_its_own_words_from_the_vocabulary(clien
     assert client.delete(f"/api/v1/documents/{a['id']}", headers=headers(KEY)).status_code == 200
     assert vocab(["zephyrquill", "inspection"]) == {"inspection"}       # still in vocab_b
     client.delete(f"/api/v1/documents/{b['id']}", headers=headers(KEY))
+
+
+def test_a_job_whose_worker_died_is_requeued_within_minutes(client, engine_env, doc):
+    """A running job stops sending heartbeats when its worker dies; the reaper requeues it long before the task
+    time limit (30 minutes), and leaves a job with a live heartbeat alone."""
+    from docintel.ingest import dispatch
+    with engine_env.system() as conn:
+        conn.execute("INSERT INTO ingest_jobs (document_id, tenant_id, state, started_at, heartbeat_at, attempts) "
+                     "VALUES (%s, %s, 'running', now() - interval '5 minutes', now() - interval '5 minutes', 1) "
+                     "ON CONFLICT (document_id) DO UPDATE SET state = 'running', attempts = 1, "
+                     "started_at = now() - interval '5 minutes', heartbeat_at = now() - interval '5 minutes'", (doc, TENANT))
+    assert dispatch.stalled_count() >= 1
+    assert dispatch.reap_stalled()["requeued"] == 1                  # default limits: 30 min task, 2 min heartbeat
+    assert _job_rows(engine_env, doc) == 0                             # reprocessed (inline mode) and finished
+    assert client.get(f"/api/v1/documents/{doc}", headers=headers(KEY)).json()["status"] == "indexed"
+
+    with engine_env.system() as conn:                                  # alive: a heartbeat 10 seconds ago
+        conn.execute("INSERT INTO ingest_jobs (document_id, tenant_id, state, started_at, heartbeat_at) "
+                     "VALUES (%s, %s, 'running', now() - interval '5 minutes', now() - interval '10 seconds')", (doc, TENANT))
+    assert dispatch.reap_stalled()["requeued"] == 0
+    with engine_env.system() as conn:
+        conn.execute("DELETE FROM ingest_jobs WHERE document_id = %s", (doc,))
+
+
+def test_a_running_job_sends_heartbeats(engine_env, doc, monkeypatch):
+    import time
+
+    from docintel.config import get_settings
+    from docintel.ingest import pipeline
+    monkeypatch.setattr(get_settings(), "job_heartbeat_sec", 1)
+    with engine_env.system() as conn:
+        conn.execute("INSERT INTO ingest_jobs (document_id, tenant_id, state, heartbeat_at) VALUES (%s, %s, 'running', "
+                     "now() - interval '1 hour') ON CONFLICT (document_id) DO UPDATE SET heartbeat_at = now() - interval '1 hour'",
+                     (doc, TENANT))
+    with pipeline._heartbeat(doc):
+        time.sleep(2.5)
+    with engine_env.system() as conn:
+        age = conn.execute("SELECT extract(epoch FROM now() - heartbeat_at) AS s FROM ingest_jobs WHERE document_id = %s",
+                           (doc,)).fetchone()["s"]
+        conn.execute("DELETE FROM ingest_jobs WHERE document_id = %s", (doc,))
+    assert age < 5

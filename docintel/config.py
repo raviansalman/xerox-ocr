@@ -69,6 +69,7 @@ class Settings(BaseSettings):
     worker_threads: int = Field(default_factory=lambda: max(2, (os.cpu_count() or 2)))
     ingest_queue: str = "docintel.ingest"
     task_time_limit_sec: int = 1800
+    job_heartbeat_sec: int = 30
 
     # Processing
     ocr_languages: str = "eng"
