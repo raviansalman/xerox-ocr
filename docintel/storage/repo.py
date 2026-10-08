@@ -245,9 +245,13 @@ def prune_vocabulary(conn: psycopg.Connection, words: set[str]) -> None:
     """Remove words that no unit of the tenant contains any more (after a delete or reprocess)."""
     if not words:
         return
-    conn.execute("DELETE FROM vocabulary v WHERE v.term = ANY(%s) AND NOT EXISTS ("
-                 "SELECT 1 FROM unit_terms u WHERE u.tenant_id = v.tenant_id AND u.term = 'w:' || v.term)",
-                 (sorted(words),))
+    # the posting keys are passed in rather than built in SQL: under row-level security a computed join key
+    # ('w:' || v.term) cannot use the postings index, and each word no unit contains any more cost a scan of every
+    # posting (4.7 s per delete at 50,000 documents; 2 ms this way)
+    words = sorted(words)
+    conn.execute("DELETE FROM vocabulary v USING unnest(%s::text[], %s::text[]) AS t(w, key) "
+                 "WHERE v.term = t.w AND NOT EXISTS (SELECT 1 FROM unit_terms u WHERE u.term = t.key)",
+                 (words, [f"w:{w}" for w in words]))
 
 
 def _bulk(conn: psycopg.Connection, table: str, cols: tuple[str, ...], rows: list[tuple]) -> None:

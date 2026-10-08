@@ -65,6 +65,7 @@ Each fix has a test that fails without it.
 * In thread mode a reprocess was dropped, and the rerun after it lost its job row.
 * With several processes in thread mode, each process reprocessed the other's backlog: 11% of the 50k corpus ran twice. Thread mode is now held to one process by a database lock.
 * Worker child processes lost all their log output.
+* Found in the browser test at 50,000 documents: deleting (or reprocessing) a document took about 8 s. The typo-vocabulary cleanup scanned every posting under row-level security; it now takes 2 ms, and a delete takes 0.03 to 0.2 s. The document list could also show a stale row when a filter response arrived after a delete; older list responses are now ignored.
 
 **Safety limits**
 

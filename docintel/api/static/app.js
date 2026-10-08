@@ -208,8 +208,10 @@ async function loadDocs() {
   if ($("docFilter").value.trim()) params.set("q", $("docFilter").value.trim());
   if ($("statusFilter").value) params.set("status", $("statusFilter").value);
   if ($("typeFilter").value) params.set("doc_type", $("typeFilter").value);
+  const seq = (state.docsSeq = (state.docsSeq || 0) + 1);
   try {
     const out = await api(`/api/v1/documents?${params}`);
+    if (seq !== state.docsSeq) return;               // a newer request (filter, delete, page) owns the table now
     state.total = out.total;
     $("docRows").replaceChildren(...out.documents.map((d) => h("tr", { "data-testid": "doc-row", dataset: { doc: d.id, status: d.status } },
       h("td", {}, h("button", { class: "link", onclick: () => openDoc(d.id) }, d.title && d.title !== d.filename ? d.title : d.filename),

@@ -266,3 +266,17 @@ def test_a_document_without_text_is_found_by_its_file_name(client, engine_env, t
     assert client.get(f"/api/v1/documents/{d['id']}", headers=headers(KEY)).json()["status"] == "indexed"
     out = client.post("/api/v1/query", headers=headers(KEY), json={"q": "Blank_Scan_Q3_Archive"}).json()
     assert d["id"] in [r["document_id"] for r in out["results"]]
+
+
+def test_deleting_a_document_prunes_only_its_own_words_from_the_vocabulary(client, engine_env):
+    """Typo correction must never suggest a word that no remaining document contains."""
+    def vocab(words):
+        with engine_env.tenant(TENANT) as conn:
+            return {r["term"] for r in conn.execute("SELECT term FROM vocabulary WHERE term = ANY(%s)", (words,)).fetchall()}
+
+    a = _upload(client, "vocab_a.txt", b"Quarterly zephyrquill inspection of the cooling towers.\n")
+    b = _upload(client, "vocab_b.txt", b"Annual inspection of the cooling towers by the vendor.\n")
+    assert vocab(["zephyrquill", "inspection"]) == {"zephyrquill", "inspection"}
+    assert client.delete(f"/api/v1/documents/{a['id']}", headers=headers(KEY)).status_code == 200
+    assert vocab(["zephyrquill", "inspection"]) == {"inspection"}       # still in vocab_b
+    client.delete(f"/api/v1/documents/{b['id']}", headers=headers(KEY))
