@@ -1,0 +1,88 @@
+identifier_fields:
+  contract_number:
+  - contract number
+  - contract no.
+  - contract no
+  - 'contract #'
+  - agreement number
+  - agreement no.
+party_cues:
+  lessee: customer
+  lessor: supplier
+  employer: employer
+  employee: employee
+clause_types:
+  termination:
+  - termination
+  - terminate
+  - terminated
+  - cancellation
+  - end the contract
+  - end this agreement
+  governing_law:
+  - governing law
+  - governed by
+  - laws of
+  - jurisdiction
+  confidentiality:
+  - confidentiality
+  - confidential information
+  - non-disclosure
+  payment:
+  - payment terms
+  - payment
+  - fees
+  - invoicing
+  - price
+  liability:
+  - limitation of liability
+  - liability
+  - liable
+  indemnification:
+  - indemnification
+  - indemnify
+  - indemnity
+  - hold harmless
+  term_and_renewal:
+  - term and renewal
+  - renewal
+  - term of agreement
+  - initial term
+  - auto-renew
+  force_majeure:
+  - force majeure
+  warranty:
+  - warranty
+  - warranties
+  - warrants
+  dispute_resolution:
+  - dispute resolution
+  - arbitration
+  - disputes
+  intellectual_property:
+  - intellectual property
+  - ownership of work
+  - copyright
+  - patents
+  notices:
+  - notices
+  - notice shall be
+  assignment:
+  - assignment
+  - assign this agreement
+field_terms:
+  jurisdiction:
+  - governed by
+  - governing law
+  - law
+  - laws
+  - jurisdiction
+lookup_terms:
+  contract_number:
+  - contract number
+  - contract no
+  total_amount:
+  - contract value
+  jurisdiction:
+  - governing law
+  - jurisdiction

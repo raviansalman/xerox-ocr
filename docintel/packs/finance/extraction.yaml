@@ -1,0 +1,47 @@
+amount_roles:
+  tax_amount:
+  - vat
+  - sales tax
+  - tax
+  salary:
+  - gross pay
+  - net pay
+  - salary
+  - wage
+  - wages
+identifier_fields:
+  invoice_number:
+  - invoice number
+  - invoice no.
+  - invoice no
+  - 'invoice #'
+  - invoice num
+  - inv no
+  - invoice
+  po_number:
+  - purchase order number
+  - purchase order no.
+  - po number
+  - po no.
+  - 'po #'
+  - purchase order
+party_cues:
+  bill to: customer
+  billed to: customer
+  customer: customer
+  client: customer
+  buyer: customer
+  sold to: customer
+  ship to: customer
+  vendor: supplier
+  supplier: supplier
+  seller: supplier
+lookup_terms:
+  invoice_number:
+  - invoice number
+  - invoice no
+  po_number:
+  - po number
+  - purchase order number
+  issue_date:
+  - invoice date

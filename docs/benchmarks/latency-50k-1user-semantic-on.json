@@ -1,0 +1,67 @@
+{
+  "count": 0,
+  "scanned_share": null,
+  "query_latency": {
+    "identifier": {
+      "p50_ms": 83.6,
+      "p95_ms": 218.5,
+      "mean_ms": 115.5,
+      "results": 10
+    },
+    "exact_phrase": {
+      "p50_ms": 172.2,
+      "p95_ms": 214.7,
+      "mean_ms": 131.8,
+      "results": 10
+    },
+    "keyword": {
+      "p50_ms": 196.7,
+      "p95_ms": 295.9,
+      "mean_ms": 215.3,
+      "results": 10
+    },
+    "typo": {
+      "p50_ms": 89.8,
+      "p95_ms": 105.9,
+      "mean_ms": 84.7,
+      "results": 10
+    },
+    "semantic": {
+      "p50_ms": 224.0,
+      "p95_ms": 314.8,
+      "mean_ms": 238.9,
+      "results": 10
+    },
+    "contextual": {
+      "p50_ms": 498.3,
+      "p95_ms": 588.2,
+      "mean_ms": 519.1,
+      "results": 10
+    },
+    "count": {
+      "p50_ms": 120.8,
+      "p95_ms": 192.1,
+      "mean_ms": 118.4,
+      "results": 16667
+    },
+    "aggregate": {
+      "p50_ms": 358.7,
+      "p95_ms": 396.1,
+      "mean_ms": 211.8,
+      "results": 16667
+    },
+    "filtered": {
+      "p50_ms": 91.2,
+      "p95_ms": 164.2,
+      "mean_ms": 90.3,
+      "results": 10
+    },
+    "lookup": {
+      "p50_ms": 335.2,
+      "p95_ms": 417.0,
+      "mean_ms": 349.9,
+      "results": 5
+    }
+  },
+  "query_concurrency": 1
+}

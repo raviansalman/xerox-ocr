@@ -1,0 +1,105 @@
+# Labelled questions over the synthetic test corpus (tests/fixtures/corpus.py). Synthetic: these numbers detect
+# regressions; they do not measure quality on real documents.
+dataset: fixtures
+source: synthetic
+tenant: acme
+k: 10
+gates:
+  exact_recall: 1.0
+  computed_accuracy: 1.0
+  abstention_fp_rate: 0.0
+  leakage: 0
+  mrr: 0.9
+  recall_at_k: 0.9
+questions:
+  # identifiers, in several spellings
+  - {id: id-01, category: identifier, exact: true, question: "INV-2026-00481", relevant: {Tax_Invoice_INV-2026-00481.pdf: 3}}
+  - {id: id-02, category: identifier, exact: true, question: "inv 2026 00481", relevant: {Tax_Invoice_INV-2026-00481.pdf: 3}}
+  - {id: id-03, category: identifier, exact: true, question: "inv202600481", relevant: {Tax_Invoice_INV-2026-00481.pdf: 3}}
+  - {id: id-04, category: identifier, exact: true, question: "00481", relevant: {Tax_Invoice_INV-2026-00481.pdf: 3}}
+  - {id: id-05, category: identifier, exact: true, question: "PO-2025-0193", relevant: {Purchase_Order_PO-2025-0193.csv: 3, Order_Confirmation.eml: 3}}
+  - {id: id-06, category: identifier, exact: true, question: "Contract No. 17/2024", relevant: {Service_Contract_17-2024.pdf: 3}}
+  - {id: id-07, category: identifier, exact: true, question: "48213", relevant: {Scanned_Service_Ticket.pdf: 3}}
+  - {id: id-08, category: identifier, exact: true, question: "VersaLink C405", relevant: {Scanned_Service_Ticket.pdf: 3}}
+  - {id: id-09, category: identifier, exact: true, question: "Versa Link C405", relevant: {Scanned_Service_Ticket.pdf: 3}}
+  - {id: id-10, category: identifier, exact: true, question: "Article 12.4", relevant: {Service_Contract_17-2024.pdf: 3}}
+  - {id: id-11, category: identifier, exact: true, question: "INVOICE 2025-0042", relevant: {Invoice_Gulf_Trading.docx: 3}}
+  - {id: id-12, category: identifier, exact: true, question: "VersaLink C7130", relevant: {Purchase_Order_PO-2025-0193.csv: 3}}
+  # exact phrases
+  - {id: ph-01, category: phrase, exact: true, question: '"for immediate release"', relevant: {Press_Release_Northbridge.pdf: 3}}
+  - {id: ph-02, category: phrase, exact: true, question: '"sixty (60) days written notice"', relevant: {Service_Contract_17-2024.pdf: 3}}
+  - {id: ph-03, category: phrase, exact: true, question: '"shake the new cartridge"', relevant: {Toner_Replacement_Procedure.html: 3}}
+  - {id: ph-04, category: phrase, exact: true, question: '"home office equipment stipend"', relevant: {Remote_Work_Policy.rtf: 3}}
+  - {id: ph-05, category: phrase, exact: true, question: '"fuser unit replaced"', relevant: {Scanned_Service_Ticket.pdf: 3}}
+  - {id: ph-06, category: phrase, exact: true, question: '"replace 12 legacy printers"', relevant: {Fleet_Review_Q3.pptx: 3}}
+  - {id: ph-07, category: phrase, exact: true, question: '"20 printers to the Jeddah office"', relevant: {Order_Confirmation.eml: 3}}
+  # keywords, names and file names
+  - {id: kw-01, category: keyword, question: "Nadia Hartwell", relevant: {Press_Release_Northbridge.pdf: 3}}
+  - {id: kw-02, category: keyword, question: "Northbridge Data", relevant: {Press_Release_Northbridge.pdf: 3}}
+  - {id: kw-03, category: keyword, question: "Saudi Aramco", relevant: {Tax_Invoice_INV-2026-00481.pdf: 3}}
+  - {id: kw-04, category: keyword, question: "Priya Raman", relevant: {Scanned_Service_Ticket.pdf: 3}}
+  - {id: kw-05, category: keyword, question: "Gulf Trading invoice", relevant: {Invoice_Gulf_Trading.docx: 3}}
+  - {id: kw-06, category: keyword, question: "delivery schedule Jeddah", relevant: {Order_Confirmation.eml: 3, Purchase_Order_PO-2025-0193.csv: 1}}
+  - {id: kw-07, category: keyword, question: "legacy printers", relevant: {Fleet_Review_Q3.pptx: 3}}
+  - {id: kw-08, category: keyword, question: "fleet uptime", relevant: {Fleet_Review_Q3.pptx: 3}}
+  - {id: kw-09, category: keyword, question: "ink", relevant: {Ink_Usage_Report.txt: 3}}
+  - {id: kw-10, category: keyword, question: "maintenance window", relevant: {memo.txt: 3}}
+  - {id: kw-11, category: keyword, question: "AltaLink uplink", relevant: {Network_Status.txt: 3}}
+  - {id: kw-12, category: keyword, question: "Toner_Replacement_Procedure", relevant: {Toner_Replacement_Procedure.html: 3}}
+  - {id: kw-13, category: keyword, question: "Payroll_Summary_2024.xlsx", relevant: {Payroll_Summary_2024.xlsx: 3}}
+  - {id: kw-14, category: keyword, question: "firmware release", relevant: {Firmware_Schedule.txt: 3}}
+  # typos and OCR errors
+  - {id: ty-01, category: typo, question: "Califomia", relevant: {scan_agreement_0412.txt: 3}}
+  - {id: ty-02, category: typo, question: "FOR IMMEDlATE RELEASE", relevant: {Press_Release_Northbridge.pdf: 3}}
+  - {id: ty-03, category: typo, question: "Nadia Hartwel", relevant: {Press_Release_Northbridge.pdf: 3}}
+  - {id: ty-04, category: typo, question: "rnaintenance visits", relevant: {scan_agreement_0412.txt: 3}}
+  - {id: ty-05, category: typo, question: "Northbrige Data", relevant: {Press_Release_Northbridge.pdf: 3}}
+  - {id: ty-06, category: typo, question: "Bluefn Analytics", relevant: {Mutual_NDA_Acme.pdf: 3}}
+  - {id: ty-07, category: typo, question: "Riyadh Logstics", relevant: {Service_Contract_17-2024.pdf: 3}}
+  - {id: ty-08, category: typo, question: "Payrol summary", relevant: {Payroll_Summary_2024.xlsx: 3}}
+  # meaning without shared words (needs the semantic index)
+  - {id: se-01, category: semantic, requires: [semantic], question: "how do I change the toner", relevant: {Toner_Replacement_Procedure.html: 3}}
+  - {id: se-02, category: semantic, requires: [semantic], question: "rules for working from home", relevant: {Remote_Work_Policy.rtf: 3}}
+  - {id: se-03, category: semantic, requires: [semantic], question: "bill for managed printing", relevant: {Tax_Invoice_INV-2026-00481.pdf: 3, Invoice_Gulf_Trading.docx: 3}}
+  - {id: se-04, category: semantic, requires: [semantic], question: "how long does the equipment lease last", relevant: {Equipment_Lease_Northwind.pdf: 3}}
+  - {id: se-05, category: semantic, requires: [semantic], question: "staff salary and pay", relevant: {Payroll_Summary_2024.xlsx: 3, Employment_Agreement_Field_Engineer.docx: 2}}
+  - {id: se-06, category: semantic, requires: [semantic], question: "confidential information protection", relevant: {Mutual_NDA_Acme.pdf: 3, Mutual_NDA_Lone_Star.pdf: 3}}
+  - {id: se-07, category: semantic, requires: [semantic], question: "network outage resolved", relevant: {Network_Status.txt: 3}}
+  # concepts worded differently in the documents (contextual retrieval)
+  - {id: cx-01, category: contextual, question: "Can either party cancel the contract early?", relevant: {Service_Contract_17-2024.pdf: 3, Employment_Agreement_Field_Engineer.docx: 3}}
+  - {id: cx-02, category: contextual, question: "Which contracts have termination clauses?", relevant: {Service_Contract_17-2024.pdf: 3, Employment_Agreement_Field_Engineer.docx: 3}}
+  # people and organizations
+  - {id: en-01, category: entity, question: "agreements involving Bluefin Analytics", relevant: {Mutual_NDA_Acme.pdf: 3}}
+  - {id: en-02, category: entity, question: "documents signed by John Smith", relevant: {Mutual_NDA_Acme.pdf: 3}}
+  - {id: en-03, category: entity, question: "Riyadh Logistics", relevant: {Service_Contract_17-2024.pdf: 3}}
+  # filters
+  - {id: st-01, category: structured, exact: true, question: "contracts governed by California law", relevant: {Mutual_NDA_Acme.pdf: 3, Employment_Agreement_Field_Engineer.docx: 3, scan_agreement_0412.txt: 3}}
+  - {id: st-02, category: structured, exact: true, question: "Which agreements expire in 2027?", relevant: {Service_Contract_17-2024.pdf: 3}}
+  - {id: st-03, category: structured, exact: true, question: "Show contracts where the payment amount is greater than $100,000", relevant: {Service_Contract_17-2024.pdf: 3, Equipment_Lease_Northwind.pdf: 3}}
+  - {id: st-04, category: structured, exact: true, question: "invoices above SAR 400,000", relevant: {Tax_Invoice_INV-2026-00481.pdf: 3}}
+  - {id: st-05, category: structured, exact: true, question: "scanned documents", relevant: {Scanned_Service_Ticket.pdf: 3, Signed_Approval_Letter.png: 3}}
+  - {id: st-06, category: structured, exact: true, question: "invoices from 2025", relevant: {Invoice_Gulf_Trading.docx: 3}}
+  - {id: st-07, category: structured, exact: true, question: "Which contracts are unsigned?", relevant: {Equipment_Lease_Northwind.pdf: 3, Employment_Agreement_Field_Engineer.docx: 3, scan_agreement_0412.txt: 3}}
+  # computed answers
+  - {id: cp-01, category: computed, question: "How many NDAs do we have?", answer: {value: 2}}
+  - {id: cp-02, category: computed, question: "How many contracts are governed by California law?", answer: {value: 3}}
+  - {id: cp-03, category: computed, question: "How many invoices do we have?", answer: {value: 2}}
+  - {id: cp-04, category: computed, question: "How many invoices were issued in 2026?", answer: {value: 1}}
+  - {id: cp-05, category: computed, question: "How many documents contain a signature?", answer: {value: 4}}
+  - {id: cp-06, category: computed, question: "What is the total value of all invoices?", answer: {rows: [{currency: SAR, value: 418750}, {currency: USD, value: 12500}]}}
+  - {id: cp-07, category: computed, question: "What is the total value of contracts with Northwind?", answer: {rows: [{currency: USD, value: 432000}]}}
+  - {id: cp-08, category: computed, question: "What percentage of our contracts are NDAs?", answer: {value: 33.3}}
+  - {id: cp-09, category: computed, question: "How many days notice is required to terminate the service contract?", answer: {value: "60"}}
+  - {id: cp-10, category: computed, question: "What is the invoice number of the Saudi Aramco invoice?", answer: {field: invoice_number, rows: [{value: INV-2026-00481}]}, relevant: {Tax_Invoice_INV-2026-00481.pdf: 3}}
+  - {id: cp-11, category: computed, tenant: globex, question: "How many NDAs do we have?", answer: {value: 1}}
+  # questions the corpus cannot answer (any result is a false positive)
+  - {id: ng-01, category: unanswerable, unanswerable: true, question: "zebra quantum lattice"}
+  - {id: ng-02, category: unanswerable, unanswerable: true, question: "recipe for chocolate cake"}
+  - {id: ng-03, category: unanswerable, unanswerable: true, question: "kubernetes cluster autoscaling"}
+  - {id: ng-04, category: unanswerable, unanswerable: true, question: "zzqxunknownzzq"}
+  - {id: ng-05, category: unanswerable, unanswerable: true, question: "Globex confidential merger"}
+  - {id: ng-06, category: unanswerable, unanswerable: true, question: "blue heron protocol 7781"}
+  - {id: ng-07, category: unanswerable, unanswerable: true, question: "INV-2099-99999"}
+  # other tenants
+  - {id: ot-01, category: identifier, tenant: globex, exact: true, question: "INV-2026-00481", relevant: {Globex_Release.txt: 3}}
+  - {id: ot-02, category: phrase, tenant: haystack, exact: true, question: "blue heron protocol 7781", relevant: {Fleet_Audit_Appendix.txt: 3}}

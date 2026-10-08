@@ -1,0 +1,33 @@
+# Names and identifiers that exist only in test fixtures or in the previous service's customer data.
+# Production code (docintel/) must never contain them: scripts/check_hardcoded.py fails the build if it does.
+# Public reference data (countries, states, currencies) is not listed here.
+acme
+globex
+haystack
+northbridge
+nadia hartwell
+john smith
+maria lopez
+omar haddad
+priya raman
+saudi aramco
+gulf trading
+gulf office systems
+lone star imaging
+northwind
+bluefin analytics
+riyadh logistics
+westbrook
+versalink
+altalink
+INV-2026-00481
+PO-2025-0193
+WB-7731
+blue heron
+xerox
+storagechain
+storage chain
+freightpal
+metafesto
+coinstore
+riordan

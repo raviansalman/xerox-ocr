@@ -1,0 +1,8 @@
+concepts:
+  payment_terms:
+    variants: [payment terms, payable, payment due, due within, net 30, net 60, pay within]
+    clause_type: payment
+  spend:
+    variants: [spend, spent, spending, paid, payment, payments, cost, costs, expense, expenses]
+  tax:
+    variants: [tax, vat, sales tax, withholding]

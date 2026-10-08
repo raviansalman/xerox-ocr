@@ -1,0 +1,10 @@
+DROP INDEX IF EXISTS entities_value;
+DROP TABLE IF EXISTS unit_terms, vocabulary;
+ALTER TABLE chunks DROP COLUMN IF EXISTS n_terms;
+CREATE INDEX IF NOT EXISTS chunks_tsv ON chunks USING gin (tsv);
+CREATE INDEX IF NOT EXISTS chunks_tsv_en ON chunks USING gin (tsv_en);
+CREATE INDEX IF NOT EXISTS chunks_tsv_fold ON chunks USING gin (tsv_fold);
+CREATE INDEX IF NOT EXISTS chunks_search_trgm ON chunks USING gin (search_text gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS documents_filename_trgm ON documents USING gin (filename_search gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS chunks_idents ON chunks USING gin (idents);
+CREATE INDEX IF NOT EXISTS entities_norm_trgm ON entities USING gin (value_norm gin_trgm_ops);

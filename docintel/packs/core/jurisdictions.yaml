@@ -1,0 +1,260 @@
+jurisdictions:
+- code: US-AL
+  name: Alabama
+- code: US-AK
+  name: Alaska
+- code: US-AZ
+  name: Arizona
+- code: US-AR
+  name: Arkansas
+- code: US-CA
+  name: California
+- code: US-CO
+  name: Colorado
+- code: US-CT
+  name: Connecticut
+- code: US-DE
+  name: Delaware
+- code: US-DC
+  name: District of Columbia
+  aliases:
+  - Washington DC
+  - Washington D.C.
+- code: US-FL
+  name: Florida
+- code: US-GA
+  name: Georgia
+- code: US-HI
+  name: Hawaii
+- code: US-ID
+  name: Idaho
+- code: US-IL
+  name: Illinois
+- code: US-IN
+  name: Indiana
+- code: US-IA
+  name: Iowa
+- code: US-KS
+  name: Kansas
+- code: US-KY
+  name: Kentucky
+- code: US-LA
+  name: Louisiana
+- code: US-ME
+  name: Maine
+- code: US-MD
+  name: Maryland
+- code: US-MA
+  name: Massachusetts
+- code: US-MI
+  name: Michigan
+- code: US-MN
+  name: Minnesota
+- code: US-MS
+  name: Mississippi
+- code: US-MO
+  name: Missouri
+- code: US-MT
+  name: Montana
+- code: US-NE
+  name: Nebraska
+- code: US-NV
+  name: Nevada
+- code: US-NH
+  name: New Hampshire
+- code: US-NJ
+  name: New Jersey
+- code: US-NM
+  name: New Mexico
+- code: US-NY
+  name: New York
+- code: US-NC
+  name: North Carolina
+- code: US-ND
+  name: North Dakota
+- code: US-OH
+  name: Ohio
+- code: US-OK
+  name: Oklahoma
+- code: US-OR
+  name: Oregon
+- code: US-PA
+  name: Pennsylvania
+- code: US-RI
+  name: Rhode Island
+- code: US-SC
+  name: South Carolina
+- code: US-SD
+  name: South Dakota
+- code: US-TN
+  name: Tennessee
+- code: US-TX
+  name: Texas
+- code: US-UT
+  name: Utah
+- code: US-VT
+  name: Vermont
+- code: US-VA
+  name: Virginia
+- code: US-WA
+  name: Washington
+  aliases:
+  - Washington State
+- code: US-WV
+  name: West Virginia
+- code: US-WI
+  name: Wisconsin
+- code: US-WY
+  name: Wyoming
+- code: US
+  name: United States
+  aliases:
+  - United States of America
+  - USA
+  - U.S.A.
+- code: GB-EAW
+  name: England and Wales
+  aliases:
+  - England
+  - England & Wales
+- code: GB-SCT
+  name: Scotland
+- code: GB
+  name: United Kingdom
+  aliases:
+  - UK
+  - U.K.
+- code: IE
+  name: Ireland
+  aliases:
+  - Republic of Ireland
+- code: SA
+  name: Saudi Arabia
+  aliases:
+  - Kingdom of Saudi Arabia
+  - KSA
+- code: AE
+  name: United Arab Emirates
+  aliases:
+  - UAE
+  - U.A.E.
+- code: AE-DU
+  name: Dubai
+- code: AE-DIFC
+  name: Dubai International Financial Centre
+  aliases:
+  - DIFC
+- code: AE-ADGM
+  name: Abu Dhabi Global Market
+  aliases:
+  - ADGM
+- code: QA
+  name: Qatar
+  aliases:
+  - State of Qatar
+- code: BH
+  name: Bahrain
+  aliases:
+  - Kingdom of Bahrain
+- code: KW
+  name: Kuwait
+  aliases:
+  - State of Kuwait
+- code: OM
+  name: Oman
+  aliases:
+  - Sultanate of Oman
+- code: EG
+  name: Egypt
+  aliases:
+  - Arab Republic of Egypt
+- code: JO
+  name: Jordan
+  aliases:
+  - Hashemite Kingdom of Jordan
+- code: IN
+  name: India
+  aliases:
+  - Republic of India
+- code: SG
+  name: Singapore
+  aliases:
+  - Republic of Singapore
+- code: HK
+  name: Hong Kong
+  aliases:
+  - Hong Kong SAR
+- code: CN
+  name: China
+  aliases:
+  - People's Republic of China
+  - PRC
+- code: JP
+  name: Japan
+- code: KR
+  name: South Korea
+  aliases:
+  - Republic of Korea
+  - Korea
+- code: AU
+  name: Australia
+  aliases:
+  - Commonwealth of Australia
+- code: AU-NSW
+  name: New South Wales
+- code: AU-VIC
+  name: Victoria
+- code: CA
+  name: Canada
+- code: CA-ON
+  name: Ontario
+- code: CA-BC
+  name: British Columbia
+- code: CA-QC
+  name: Quebec
+- code: CA-AB
+  name: Alberta
+- code: DE
+  name: Germany
+  aliases:
+  - Federal Republic of Germany
+- code: FR
+  name: France
+  aliases:
+  - French Republic
+- code: NL
+  name: Netherlands
+  aliases:
+  - The Netherlands
+- code: CH
+  name: Switzerland
+- code: LU
+  name: Luxembourg
+- code: BE
+  name: Belgium
+- code: ES
+  name: Spain
+- code: IT
+  name: Italy
+- code: SE
+  name: Sweden
+- code: false
+  name: Norway
+- code: DK
+  name: Denmark
+- code: BR
+  name: Brazil
+- code: MX
+  name: Mexico
+- code: ZA
+  name: South Africa
+- code: NG
+  name: Nigeria
+- code: KE
+  name: Kenya
+- code: PK
+  name: Pakistan
+- code: TR
+  name: Turkey
+  aliases:
+  - Türkiye

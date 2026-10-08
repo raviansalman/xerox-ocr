@@ -1,0 +1,37 @@
+# syntax=docker/dockerfile:1.7
+# Embedding (and optional reranking) service. Model files come from the build context (deploy/models/<key>/, for
+# networks that cannot reach the model hub) or are downloaded at build time; either way their checksums are verified
+# against docintel/model_registry.yaml and the service runs offline.
+#   docker build -f deploy/Dockerfile.embedder -t docintel-embedder:2.0.0 .
+#   docker build ... --build-arg RERANKER_MODEL=ms-marco-MiniLM-L-6-v2          # also serve the reranker
+#   docker build ... --build-arg TORCH_INDEX=                                   # torch from PyPI instead
+FROM ubuntu:24.04
+
+ARG EMBEDDING_MODEL=all-mpnet-base-v2
+ARG RERANKER_MODEL=
+ARG TORCH_INDEX=https://download.pytorch.org/whl/cpu
+ENV DEBIAN_FRONTEND=noninteractive PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 \
+    PATH=/opt/venv/bin:$PATH DOCINTEL_EMBEDDING_MODEL=${EMBEDDING_MODEL} DOCINTEL_RERANKER_MODEL=${RERANKER_MODEL} \
+    DOCINTEL_EMBEDDER_CACHE=/models
+
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates python3.12 python3.12-venv curl \
+    && rm -rf /var/lib/apt/lists/* && python3.12 -m venv /opt/venv && useradd --create-home --uid 10001 docintel
+
+WORKDIR /app
+COPY pyproject.toml README.md ./
+COPY docintel ./docintel
+COPY scripts/fetch_model.py ./scripts/fetch_model.py
+RUN --mount=type=secret,id=ca,required=false \
+    if [ -s /run/secrets/ca ]; then cat /etc/ssl/certs/ca-certificates.crt /run/secrets/ca > /tmp/ca.pem; \
+        export PIP_CERT=/tmp/ca.pem; fi \
+    && pip install ${TORCH_INDEX:+--index-url "$TORCH_INDEX"} "torch==2.3.1" \
+    && pip install ".[embedder]" && rm -f /tmp/ca.pem
+RUN --mount=type=bind,source=deploy/models,target=/models-src \
+    python scripts/fetch_model.py "$EMBEDDING_MODEL" /models --source /models-src \
+    && if [ -n "$RERANKER_MODEL" ]; then python scripts/fetch_model.py "$RERANKER_MODEL" /models --source /models-src --reranker; fi \
+    && chown -R docintel /models
+
+USER docintel
+EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 CMD curl -fs http://127.0.0.1:8080/health || exit 1
+CMD ["uvicorn", "docintel.embedder.app:app", "--host", "0.0.0.0", "--port", "8080"]

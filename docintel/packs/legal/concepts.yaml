@@ -1,0 +1,31 @@
+# Concepts: the ways a document may express an idea, used to expand questions (contextual retrieval).
+#  variants: words and phrases that express the concept (lowercase); a question mentioning any of them
+#            searches for all of them
+#  clause_type: clause type that states the concept (clauses table), if any
+#  predicate:   relation predicate that records it (relations table), if any
+concepts:
+  termination:
+    variants: [terminate, terminates, terminated, termination, cancel, cancels, cancelled, cancellation,
+               end the agreement, end this agreement, end the contract, end the employment, early termination,
+               rescind, rescission, notice of termination, exit]
+    clause_type: termination
+    predicate: may_terminate
+  renewal:
+    variants: [renew, renewal, renews, auto-renew, automatically renew, extension, extend the term]
+    clause_type: term_and_renewal
+  confidentiality:
+    variants: [confidential, confidentiality, non-disclosure, nondisclosure, secret, proprietary information]
+    clause_type: confidentiality
+  liability:
+    variants: [liability, liable, limitation of liability, damages, cap on liability]
+    clause_type: liability
+  governing_law:
+    variants: [governing law, governed by, jurisdiction, applicable law, laws of]
+    clause_type: governing_law
+    predicate: governed_by
+  indemnification:
+    variants: [indemnify, indemnification, indemnity, hold harmless]
+    clause_type: indemnification
+  dispute_resolution:
+    variants: [dispute, disputes, arbitration, mediation, litigation]
+    clause_type: dispute_resolution

@@ -1,0 +1,72 @@
+families:
+  correspondence:
+  - letter
+  - memo
+  - email
+family_terms:
+  correspondence:
+  - correspondence
+types:
+  letter:
+    display: Letter
+    query_terms:
+    - letter
+    - letters
+    title_patterns:
+    - ^\s*dear\s
+    - \bletter\b
+    keywords:
+      dear: 1
+      sincerely: 2
+      yours faithfully: 2
+    description: A formal letter addressed to a person or organization.
+    title_weight: 3.0
+  memo:
+    display: Memo
+    query_terms:
+    - memo
+    - memos
+    - memorandum
+    - memoranda
+    title_patterns:
+    - \b(internal\s+)?memo(randum)?\b
+    keywords:
+      to: 0
+      subject: 1
+    description: An internal memorandum.
+  email:
+    display: Email
+    query_terms:
+    - email
+    - emails
+    - e-mail
+    - e-mails
+    title_patterns: []
+    keywords: {}
+    description: An email message.
+  report:
+    display: Report
+    query_terms:
+    - report
+    - reports
+    title_patterns:
+    - \breport\b
+    keywords:
+      summary: 1
+      findings: 1
+    description: A report presenting information, findings or results.
+    title_weight: 3.0
+  form:
+    display: Form
+    query_terms:
+    - form
+    - forms
+    - application form
+    - application forms
+    title_patterns:
+    - \b(application|registration|request)\s+form\b
+    keywords:
+      please complete: 2
+      signature: 1
+    description: A form to be filled in by a person.
+    title_weight: 3.0

@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Document Intelligence</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="logo" aria-hidden="true"></span><span>Document Intelligence</span></div>
+    <nav class="tabs" role="tablist">
+      <button class="tab active" data-tab="ask" role="tab" data-testid="tab-ask">Ask</button>
+      <button class="tab" data-tab="documents" role="tab" data-testid="tab-documents">Documents</button>
+    </nav>
+    <div class="session">
+      <span id="health" class="dot" title="Service status" data-testid="health"></span>
+      <span id="tenant" class="tenant" data-testid="tenant"></span>
+      <button id="keyButton" class="ghost" data-testid="key-button">API key</button>
+    </div>
+  </header>
+
+  <dialog id="keyDialog" data-testid="key-dialog">
+    <form method="dialog" id="keyForm">
+      <h2>Connect</h2>
+      <p class="muted">Paste the API key you were given. It is stored only in this browser.</p>
+      <input id="keyInput" type="password" autocomplete="off" placeholder="API key" data-testid="key-input" required>
+      <p id="keyError" class="error" hidden></p>
+      <div class="row end"><button type="submit" class="primary" data-testid="key-save">Connect</button></div>
+    </form>
+  </dialog>
+
+  <main>
+    <section id="ask" class="panel active" data-testid="panel-ask">
+      <form id="askForm" class="ask" autocomplete="off">
+        <input id="q" name="q" type="search" placeholder="Ask a question or search your documents" data-testid="query-input" required>
+        <button class="primary" type="submit" data-testid="query-submit">Ask</button>
+      </form>
+      <div class="examples" id="examples" data-testid="examples"></div>
+      <label class="check"><input type="checkbox" id="explain" data-testid="explain-toggle"> Show how the question was understood</label>
+      <div id="answer" class="answer" hidden data-testid="answer"></div>
+      <pre id="plan" class="plan" hidden data-testid="plan"></pre>
+      <div id="results" class="results" data-testid="results"></div>
+    </section>
+
+    <section id="documents" class="panel" data-testid="panel-documents">
+      <div class="stats" id="stats" data-testid="stats"></div>
+      <div class="upload" id="drop" data-testid="dropzone">
+        <input type="file" id="fileInput" multiple hidden data-testid="file-input">
+        <p><strong>Drop files here</strong> or <button type="button" class="link" id="browse">browse</button></p>
+        <p class="muted">PDF (digital or scanned), images, Word, Excel, PowerPoint, CSV, text, HTML, RTF, email. Many files at once.</p>
+        <form id="urlForm" class="row">
+          <input id="urlInput" type="url" placeholder="…or ingest from a URL" data-testid="url-input">
+          <button class="ghost" type="submit">Add URL</button>
+        </form>
+        <div id="uploadStatus" class="muted" data-testid="upload-status"></div>
+      </div>
+      <div class="toolbar">
+        <input id="docFilter" type="search" placeholder="Filter by file name" data-testid="doc-filter">
+        <select id="statusFilter" data-testid="status-filter">
+          <option value="">All statuses</option><option value="indexed">Indexed</option>
+          <option value="processing">Processing</option><option value="queued">Queued</option><option value="failed">Failed</option>
+        </select>
+        <select id="typeFilter" data-testid="type-filter"><option value="">All types</option></select>
+        <button id="refresh" class="ghost" data-testid="refresh">Refresh</button>
+      </div>
+      <table class="docs" data-testid="doc-table">
+        <thead><tr><th>Document</th><th>Type</th><th>Status</th><th>Pages</th><th>Added</th><th></th></tr></thead>
+        <tbody id="docRows"></tbody>
+      </table>
+      <div class="pager"><button id="prev" class="ghost">Previous</button><span id="pageInfo" class="muted"></span><button id="next" class="ghost">Next</button></div>
+    </section>
+  </main>
+
+  <aside id="drawer" class="drawer" hidden data-testid="drawer">
+    <div class="drawer-head">
+      <h2 id="dTitle"></h2>
+      <button id="dClose" class="ghost" aria-label="Close" data-testid="drawer-close">Close</button>
+    </div>
+    <div id="dBody" class="drawer-body"></div>
+  </aside>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

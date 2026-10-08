@@ -1,0 +1,5 @@
+[
+  {"name": "<tenant>-admin", "key_sha256": "<sha256 printed by: docintel keygen>", "tenant": "<tenant>", "roles": ["admin"]},
+  {"name": "<tenant>-reader", "key_sha256": "<sha256>", "tenant": "<tenant>", "roles": ["reader"]},
+  {"name": "<backend-service>", "key_sha256": "<sha256>", "roles": ["service"]}
+]

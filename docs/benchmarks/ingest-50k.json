@@ -1,0 +1,16 @@
+{
+  "what": "50,000 synthetic documents uploaded through the API and processed; numbers from database timestamps",
+  "commit": "b76a48b (processing code identical in a9dee42 apart from retry handling)",
+  "machine": "one 4-core, 16 GB VM running API, processing, PostgreSQL 16, Milvus 2.6.3 and the CPU embedder",
+  "configuration": {"task_mode": "thread", "api_processes": 2, "worker_threads_per_process": 3,
+                    "embedding_model": "all-mpnet-base-v2 (real, CPU)", "vector_backend": "milvus"},
+  "corpus": {"native_pdf": 16336, "office_docx": 16419, "text": 16235, "scanned_pdf_ocr": 1010, "scanned_share": 0.02},
+  "upload_window": ["2026-10-08T05:32:40Z", "2026-10-08T05:34:58Z"],
+  "all_first_versions_finished": "2026-10-08T06:49:33Z",
+  "first_pass_minutes": 76.9,
+  "documents_per_minute": 650,
+  "failed": 0,
+  "caveat": "From 06:38 the two API processes also re-processed 5,775 documents (the thread-mode reaper bug fixed in 1fa13e2 and a9dee42); that work ran on the same cores, so 650/min understates the clean rate.",
+  "storage": {"database_mb": 2267, "postings_mb": 1576, "postings_rows": 6323508, "units": 100000,
+              "units_mb": 258, "relations_mb": 94, "fields_mb": 84, "blocks_mb": 55, "originals_gb": 2.5}
+}

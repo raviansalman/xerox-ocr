@@ -1,0 +1,5 @@
+name: finance
+version: 1.0.0
+description: 'Financial documents: invoices, receipts, quotations, purchase orders, statements and payroll.'
+depends_on:
+- core

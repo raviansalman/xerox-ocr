@@ -1,0 +1,104 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "docintel"
+version = "2.0.0"
+description = "Document Intelligence Engine: ingest, understand and query enterprise documents with evidence"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Proprietary" }
+dependencies = [
+  "fastapi>=0.142,<0.143",
+  "starlette>=1.3.1,<2",
+  "uvicorn[standard]>=0.32,<0.33",
+  "pydantic>=2.8,<3",
+  "pydantic-settings>=2.4,<3",
+  "psycopg[binary,pool]>=3.2,<3.3",
+  "psycopg-pool>=3.2",                    # ConnectionPool.check_connection
+  "pymilvus>=2.6,<2.7",
+  "redis>=5,<6",
+  "celery>=5.4,<5.5",
+  "pymupdf>=1.24,<1.25",
+  "pillow>=12.3,<13",
+  "pytesseract>=0.3.10,<0.4",
+  "python-docx>=1.1,<1.2",
+  "openpyxl>=3.1,<3.2",
+  "xlrd>=2.0,<2.1",
+  "python-pptx>=1.0,<1.1",
+  "striprtf>=0.0.26,<0.1",
+  "python-multipart>=0.0.9",
+  "httpx>=0.27,<0.28",
+  "pyyaml>=6,<7",
+  "numpy>=1.26,<2",
+  "opencv-python-headless>=4.9,<5",
+  "prometheus-client>=0.20,<0.22",
+]
+
+[project.optional-dependencies]
+answer = ["anthropic>=1.12,<2"]
+embedder = ["sentence-transformers==2.7.0", "transformers==4.41.1", "torch>=2.3,<2.4"]
+dev = ["pytest>=9.0.3,<10", "pytest-timeout>=2.3", "playwright>=1.40,<2",
+       "ruff==0.16.10", "bandit==1.9.4", "pip-audit==2.10.1"]          # pinned: CI and local checks must agree
+
+[project.scripts]
+docintel = "docintel.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["docintel*"]
+
+[tool.setuptools.package-data]
+docintel = ["model_registry.yaml", "packs/*/*.yaml", "storage/migrations/*.sql", "api/static/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+timeout = 600
+filterwarnings = [
+  # emitted by PyMuPDF's SWIG bindings on import, not by this project
+  "ignore:builtin type .* has no __module__ attribute:DeprecationWarning",
+]
+markers = [
+  "integration: needs PostgreSQL, Milvus and Redis (DOCINTEL_TEST_INTEGRATION=1)",
+  "e2e: browser tests of the web UI (DOCINTEL_TEST_E2E=1)",
+  "slow: long-running measurements",
+  "semantic: needs semantic search (skipped with DOCINTEL_TEST_VECTORS=disabled)",
+]
+
+[tool.ruff]
+line-length = 130
+target-version = "py311"
+extend-exclude = ["docs"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF"]
+ignore = [
+  "E501",    # long lines are allowed where they read better; the formatter keeps them under 130 where it can
+  "S101",    # assert is used in tests
+  "S608",    # SQL is built from fixed fragments with bound parameters; reviewed in docs/SECURITY.md
+  "SIM905",  # word lists are written as split strings for readability
+  "RUF001", "RUF002", "RUF003",   # typographic characters in user-facing strings are intended
+  "SIM108",
+  "B008",    # FastAPI dependency defaults
+  "RUF005",  # list concatenation reads clearer than unpacking in SQL argument lists
+  "SIM117",  # nested with-blocks for pool connection and transaction are intentional
+]
+
+[tool.ruff.lint.per-file-ignores]
+"docintel/processing/chunking.py" = ["B023"]   # emit() is called within the iteration whose variables it reads
+"tests/**" = ["S", "B", "SIM"]
+"scripts/**" = ["S"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+warn_unused_ignores = true
+no_implicit_optional = true
+
+[tool.bandit]
+# Reviewed: B608 sites interpolate only code constants (column lists, table names, closed operator sets checked at
+# the call site); every value is a bound parameter. B404/B603: LibreOffice and Tesseract run with argument lists,
+# never a shell. B105: a regular expression, not a password.
+exclude_dirs = ["tests"]
+skips = ["B608", "B404", "B603", "B105"]

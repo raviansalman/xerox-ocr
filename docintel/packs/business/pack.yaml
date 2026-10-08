@@ -1,0 +1,5 @@
+name: business
+version: 1.0.0
+description: 'General business documents: press releases, policies and procedures.'
+depends_on:
+- core

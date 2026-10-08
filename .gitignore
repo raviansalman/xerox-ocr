@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# Tests and tooling
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+
+# Local data
+data/
+models/
+
+# Secrets: only the *.example templates are tracked
+.env
+.env.*
+*.env
+!.env.example
+deploy/api_keys.json
+api_keys.json
+
+# Editors and OS
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# model files for offline image builds (only the README is tracked)
+!deploy/models/
+deploy/models/*
+!deploy/models/README.md

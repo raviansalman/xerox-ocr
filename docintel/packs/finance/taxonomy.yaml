@@ -1,0 +1,114 @@
+families:
+  financial:
+  - invoice
+  - receipt
+  - quotation
+  - purchase_order
+  - financial_statement
+  - payroll
+family_terms:
+  financial:
+  - financial document
+  - financial documents
+types:
+  invoice:
+    display: Invoice
+    query_terms:
+    - invoice
+    - invoices
+    - bill
+    - bills
+    - tax invoice
+    - tax invoices
+    title_patterns:
+    - \b(tax\s+)?invoice\b
+    keywords:
+      invoice number: 3
+      invoice no: 3
+      amount due: 2
+      bill to: 2
+      vat: 1
+      subtotal: 1
+    description: An invoice requesting payment for goods or services with amounts, tax and due date.
+    date_field: issue_date
+  receipt:
+    display: Receipt
+    query_terms:
+    - receipt
+    - receipts
+    title_patterns:
+    - \breceipt\b
+    keywords:
+      amount paid: 2
+      payment received: 2
+    description: A receipt confirming that a payment was received.
+    date_field: issue_date
+  quotation:
+    display: Quotation
+    query_terms:
+    - quote
+    - quotes
+    - quotation
+    - quotations
+    - proposal
+    - proposals
+    title_patterns:
+    - \b(quotation|price\s+quote|proposal)\b
+    keywords:
+      valid for: 1
+      quotation: 2
+    description: A price quotation or commercial proposal.
+    date_field: issue_date
+  purchase_order:
+    display: Purchase order
+    query_terms:
+    - purchase order
+    - purchase orders
+    - po
+    - pos
+    title_patterns:
+    - \bpurchase\s+order\b
+    keywords:
+      po number: 3
+      ship to: 1
+      quantity: 1
+    description: A purchase order issued by a buyer listing items, quantities and prices.
+    date_field: issue_date
+  financial_statement:
+    display: Financial statement
+    query_terms:
+    - financial statement
+    - financial statements
+    - balance sheet
+    - balance sheets
+    - income statement
+    - income statements
+    - bank statement
+    - bank statements
+    title_patterns:
+    - \b(financial|bank)\s+statement\b
+    - \bbalance\s+sheet\b
+    - \bincome\s+statement\b
+    keywords:
+      total assets: 2
+      net income: 2
+      closing balance: 2
+    description: A financial or bank statement with balances, assets, income or transactions.
+  payroll:
+    display: Payroll record
+    query_terms:
+    - payroll
+    - payroll record
+    - payroll records
+    - payslip
+    - payslips
+    - pay slip
+    - pay slips
+    title_patterns:
+    - \bpayroll\b
+    - \bpay\s*slip\b
+    keywords:
+      gross pay: 2
+      net pay: 2
+      employees paid: 2
+    description: A payroll summary or payslip listing employee pay.

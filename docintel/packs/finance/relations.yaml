@@ -1,0 +1,5 @@
+relations:
+  - predicate: payment_due_within
+    pattern:
+      - '(?P<subject>payment|invoices?|the (?:balance|amount|total))[^.;\n]{0,40}?'
+      - '(?:due|payable)\s+(?:with)?in\s+(?P<days>\d+)\s+days'

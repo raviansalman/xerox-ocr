@@ -1,0 +1,181 @@
+date_roles:
+  expiry_date:
+  - expires on
+  - expire on
+  - expires
+  - expiry date
+  - expiration date
+  - expiry
+  - expiration
+  - valid until
+  - valid through
+  - terminates on
+  - end date
+  - ends on
+  - until
+  due_date:
+  - due date
+  - payment due
+  - due on
+  - due by
+  - due
+  signature_date:
+  - signed on
+  - executed on
+  - date of signature
+  - signed this
+  - signature date
+  effective_date:
+  - effective date
+  - effective as of
+  - effective from
+  - effective
+  - commencement date
+  - commencing
+  - starting
+  - start date
+  - starts on
+  - made on
+  - entered into on
+  - dated as of
+  issue_date:
+  - invoice date
+  - issue date
+  - date of issue
+  - issued on
+  - issued
+  - dated
+  - date
+amount_roles:
+  total_amount:
+  - total contract value
+  - contract value
+  - total value
+  - grand total
+  - total amount
+  - amount due
+  - balance due
+  - total due
+  - total payable
+  - total
+  periodic_amount:
+  - monthly payment
+  - monthly fee
+  - monthly rent
+  - annual fee
+  - per month
+  - per year
+  - quarterly payment
+  amount: []
+identifier_fields:
+  reference_number:
+  - reference number
+  - reference no.
+  - ref no.
+  - ref.
+  - reference
+  - ref
+  account_number:
+  - account number
+  - account no.
+  - 'account #'
+  - acct no.
+  ticket_number:
+  - ticket number
+  - ticket no.
+  - 'ticket #'
+  - ticket
+party_cues:
+  from: sender
+  to: recipient
+person_cues:
+  signed by: signer
+  signed: signer
+  /s/: signer
+  signature: signer
+  executed by: signer
+  authorized signatory: signer
+  approved by: approver
+  prepared by: author
+  written by: author
+  attn: recipient
+  attention: recipient
+  contact: contact
+  media contact: contact
+  technician: technician
+  name: named_person
+field_terms:
+  expiry_date:
+  - expire
+  - expires
+  - expiring
+  - expiry
+  - expiration
+  - expired
+  - end
+  - ending
+  issue_date:
+  - issued
+  - issue date
+  - dated
+  - invoice date
+  effective_date:
+  - effective
+  - start
+  - starting
+  - commence
+  - commencing
+  - began
+  due_date:
+  - due
+  signature_date:
+  - signed on
+  - signature date
+  total_amount:
+  - value
+  - total
+  - amount
+  - worth
+  - price
+  - cost
+lookup_terms:
+  reference_number:
+  - reference number
+  - reference
+  ticket_number:
+  - ticket number
+  account_number:
+  - account number
+  expiry_date:
+  - expiry date
+  - expiration date
+  - end date
+  due_date:
+  - due date
+  issue_date:
+  - issue date
+  - date
+  effective_date:
+  - effective date
+  - start date
+  signature_date:
+  - signature date
+  total_amount:
+  - total
+  - total amount
+  - amount
+  - amount due
+  - value
+  - total value
+  - price
+  periodic_amount:
+  - monthly payment
+  party:
+  - parties
+  - party
+  - customer
+  signer:
+  - signer
+  - signatory
+  - signers
+  - signatories

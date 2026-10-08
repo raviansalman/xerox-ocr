@@ -1,0 +1,33 @@
+# Embedding model registry. The engine refuses to search a vector collection built with a different model.
+# semantic_floor: minimum cosine similarity for a semantic-only hit (calibrated with
+# tests/integration/test_semantic_quality.py). chunk_chars: target chunk size that stays inside max_tokens.
+models:
+  all-mpnet-base-v2:
+    name: sentence-transformers/all-mpnet-base-v2
+    revision: e8c3b32edf5434bc2275fc9bab85f82640a19130
+    sha256: 78c0197b6159d92658e319bc1d72e4c73a9a03dd03815e70e555c5ef05615658
+    dimension: 768
+    normalize: true
+    max_tokens: 384
+    chunk_chars: 1000
+    semantic_floor: 0.30
+    languages: [en]
+  test-hash-768:
+    name: tests/support/fake_embedder
+    revision: "1"
+    dimension: 768
+    normalize: true
+    max_tokens: 100000
+    chunk_chars: 1000
+    semantic_floor: 0.30
+    languages: [en]
+
+# Cross-encoder rerankers (optional; DOCINTEL_RERANKER_MODEL on the API and on the embedding service).
+rerankers:
+  ms-marco-MiniLM-L-6-v2:
+    name: cross-encoder/ms-marco-MiniLM-L-6-v2
+    sha256: a6e1fd85181a93a58bc33f65700f2ba34da3af2667f85cc57bcdf0f9f0092200
+    max_tokens: 512
+  test-overlap:
+    name: tests/support/fake_embedder
+    max_tokens: 100000

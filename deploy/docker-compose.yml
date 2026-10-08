@@ -1,0 +1,120 @@
+# Single-host deployment: API, Celery workers, embedder, PostgreSQL, Milvus and Redis.
+#   cp deploy/.env.example deploy/.env    # fill in passwords and API keys
+#   docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
+# Scale processing with: docker compose ... up -d --scale worker=4
+# Only the API port is published; the data stores are reachable on the internal network only.
+
+x-app: &app
+  build: { context: .., dockerfile: deploy/Dockerfile }
+  image: docintel:2.0.0
+  restart: unless-stopped
+  security_opt: ["no-new-privileges:true"]          # non-root, no capabilities: nothing to escalate to
+  cap_drop: [ALL]
+  environment: &app-env
+    DOCINTEL_ENVIRONMENT: production
+    DOCINTEL_DATABASE_URL: postgresql://docintel_app:${DOCINTEL_DB_PASSWORD:?set DOCINTEL_DB_PASSWORD}@postgres:5432/docintel
+    DOCINTEL_VECTOR_BACKEND: milvus
+    DOCINTEL_MILVUS_URI: http://milvus:19530
+    DOCINTEL_EMBEDDER_URL: http://embedder:8080
+    DOCINTEL_EMBEDDING_MODEL: ${DOCINTEL_EMBEDDING_MODEL:-all-mpnet-base-v2}
+    DOCINTEL_TASK_MODE: celery
+    DOCINTEL_REDIS_URL: redis://:${DOCINTEL_REDIS_PASSWORD:?set DOCINTEL_REDIS_PASSWORD}@redis:6379/0
+    DOCINTEL_API_KEYS_FILE: /run/secrets/api_keys
+    DOCINTEL_CORS_ORIGINS: ${DOCINTEL_CORS_ORIGINS:-}
+    DOCINTEL_URL_FETCH_ENABLED: ${DOCINTEL_URL_FETCH_ENABLED:-false}
+    DOCINTEL_METRICS_TOKEN: ${DOCINTEL_METRICS_TOKEN:?set DOCINTEL_METRICS_TOKEN (bearer token for /metrics)}
+    DOCINTEL_RERANKER_MODEL: ${DOCINTEL_RERANKER_MODEL:-}
+    DOCINTEL_ANSWER_PROVIDER: ${DOCINTEL_ANSWER_PROVIDER:-extractive}
+    DOCINTEL_ANSWER_API_KEY: ${DOCINTEL_ANSWER_API_KEY:-}
+  volumes: [objects:/data]
+  secrets: [api_keys]
+  depends_on:
+    postgres: { condition: service_healthy }
+    milvus: { condition: service_healthy }
+    redis: { condition: service_healthy }
+    embedder: { condition: service_healthy }
+
+services:
+  api:
+    <<: *app
+    ports: ["${DOCINTEL_PORT:-8000}:8000"]
+    command: ["docintel", "serve", "--host", "0.0.0.0", "--port", "8000", "--workers", "${DOCINTEL_API_WORKERS:-2}"]
+
+  worker:
+    <<: *app
+    command: ["celery", "-A", "docintel.worker", "worker", "--loglevel=INFO", "-Q", "docintel.ingest",
+              "--concurrency", "${DOCINTEL_WORKER_CONCURRENCY:-4}", "--prefetch-multiplier", "1"]
+    environment:
+      <<: *app-env
+      DOCINTEL_WORKER_METRICS_PORT: "9100"          # Prometheus scrapes worker:9100 on the internal network
+      PROMETHEUS_MULTIPROC_DIR: /tmp/prometheus
+    healthcheck: { disable: true }
+    # the API initializes the empty volume from the image (ownership of /data); two containers doing that at
+    # once on a new host fail with "file exists", so the worker mounts without copying and starts after the API
+    volumes: [{ type: volume, source: objects, target: /data, volume: { nocopy: true } }]
+    depends_on:
+      api: { condition: service_started }
+      postgres: { condition: service_healthy }
+      milvus: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      embedder: { condition: service_healthy }
+
+  embedder:
+    build: { context: .., dockerfile: deploy/Dockerfile.embedder,
+             args: { EMBEDDING_MODEL: "${DOCINTEL_EMBEDDING_MODEL:-all-mpnet-base-v2}",
+                     RERANKER_MODEL: "${DOCINTEL_RERANKER_MODEL:-}",
+                     TORCH_INDEX: "${DOCINTEL_TORCH_INDEX-https://download.pytorch.org/whl/cpu}" } }
+    image: docintel-embedder:2.0.0
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    environment:
+      DOCINTEL_EMBEDDER_DEVICE: ${DOCINTEL_EMBEDDER_DEVICE:-cpu}
+
+  postgres:
+    image: postgres:16.4-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      DOCINTEL_DB_PASSWORD: ${DOCINTEL_DB_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres-init.sql:/docker-entrypoint-initdb.d/10-docintel.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d docintel"]
+      interval: 10s
+      retries: 10
+
+  milvus:
+    image: milvusdb/milvus:v2.6.3
+    restart: unless-stopped
+    command: ["milvus", "run", "standalone"]
+    environment:
+      ETCD_USE_EMBED: "true"
+      ETCD_DATA_DIR: /var/lib/milvus/etcd
+      COMMON_STORAGETYPE: local
+      DEPLOY_MODE: STANDALONE
+    volumes: [milvus:/var/lib/milvus]
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://127.0.0.1:9091/healthz"]
+      interval: 15s
+      start_period: 90s
+      retries: 10
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--requirepass", "${DOCINTEL_REDIS_PASSWORD}", "--appendonly", "yes"]
+    volumes: [redis:/data]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$DOCINTEL_REDIS_PASSWORD\" --no-auth-warning ping | grep PONG"]
+      interval: 10s
+      retries: 10
+    environment:
+      DOCINTEL_REDIS_PASSWORD: ${DOCINTEL_REDIS_PASSWORD}
+
+secrets:
+  api_keys:
+    file: ${DOCINTEL_API_KEYS_PATH:-./api_keys.json}
+
+volumes: { objects: {}, pgdata: {}, milvus: {}, redis: {} }

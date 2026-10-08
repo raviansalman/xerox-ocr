@@ -1,0 +1,19 @@
+# Relation patterns, matched case-insensitively against single sentences (use (?-i:...) for parts that must keep
+# their case, such as capitalized names). A pattern is a string or a list of
+# fragments concatenated exactly as written (no separators added). Named groups: subject (required), object
+# (optional; the document when absent); every other group becomes a qualifier.
+relations:
+  - predicate: may_terminate
+    pattern:
+      - '(?P<subject>either party|each party|both parties|any party|the (?:customer|client|supplier|provider|company|'
+      - 'employer|employee|lessee|lessor|buyer|seller|licensee|licensor)|(?-i:[A-Z][\w&.]+(?: [A-Z][\w&.]+){0,3}))'
+      - '\s+(?:may|can|shall have the right to|is entitled to|reserves the right to)\s+(?:terminate|cancel|end)\b'
+      - '\s*(?P<object>[^.;\n]{0,80}?)'
+      - '(?:\s+(?:by|upon|with|on|after|giving)\s+(?:giving\s+)?(?:at\s+least\s+)?'
+      - '(?P<notice>(?:\w+\s+)?\(?\d+\)?\s+days?[''’]?|\w+(?:-\w+)?\s+days?[''’]?)'
+      - '\s+(?:prior\s+|advance\s+)?(?:written\s+)?notice|\s*(?=[.;\n]|$))'
+  - predicate: notice_period
+    pattern:
+      - '(?P<subject>termination|notice|either party|each party)[^.;\n]{0,80}?'
+      - '(?P<notice>\(?\d+\)?\s+days?[''’]?|(?:thirty|sixty|ninety|fourteen|seven)\s+(?:\(\d+\)\s+)?days?[''’]?)'
+      - '\s+(?:prior\s+|advance\s+)?(?:written\s+)?notice'

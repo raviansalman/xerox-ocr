@@ -1,0 +1,5 @@
+name: core
+version: 1.0.0
+description: 'Generic document understanding: dates, amounts, identifiers, people, organizations, places and common document
+  classes. Always enabled.'
+depends_on: []

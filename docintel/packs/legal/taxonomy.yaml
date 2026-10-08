@@ -1,0 +1,138 @@
+families:
+  contract:
+  - nda
+  - service_agreement
+  - supply_agreement
+  - employment_agreement
+  - lease_agreement
+  - purchase_agreement
+  - contract
+family_terms:
+  contract:
+  - contract
+  - contracts
+  - agreement
+  - agreements
+types:
+  nda:
+    display: Non-disclosure agreement
+    query_terms:
+    - nda
+    - ndas
+    - mnda
+    - mndas
+    - non-disclosure agreement
+    - non-disclosure agreements
+    - nondisclosure agreement
+    - nondisclosure agreements
+    - confidentiality agreement
+    - confidentiality agreements
+    title_patterns:
+    - \b(mutual\s+)?non[-\s]?disclosure\s+agreement\b
+    - \bconfidentiality\s+agreement\b
+    - ^\s*m?nda\b
+    keywords:
+      confidential information: 2
+      disclosing party: 2
+      receiving party: 2
+      non-disclosure: 2
+    description: A non-disclosure or confidentiality agreement protecting confidential information shared between parties.
+  service_agreement:
+    display: Service agreement
+    query_terms:
+    - service agreement
+    - service agreements
+    - service contract
+    - service contracts
+    - master service agreement
+    - master services agreement
+    - msa
+    - msas
+    title_patterns:
+    - \b(master\s+)?services?\s+(agreement|contract)\b
+    keywords:
+      services: 1
+      service level: 2
+      statement of work: 2
+    description: An agreement for the provision of services, maintenance or support between a provider and a customer.
+  supply_agreement:
+    display: Supply agreement
+    query_terms:
+    - supply agreement
+    - supply agreements
+    - supply contract
+    - supply contracts
+    title_patterns:
+    - \bsupply\s+(agreement|contract)\b
+    keywords:
+      supplier: 1
+      deliver: 1
+      goods: 1
+    description: An agreement to supply goods or materials.
+  employment_agreement:
+    display: Employment agreement
+    query_terms:
+    - employment agreement
+    - employment agreements
+    - employment contract
+    - employment contracts
+    - offer letter
+    - offer letters
+    title_patterns:
+    - \bemployment\s+(agreement|contract)\b
+    - \boffer\s+letter\b
+    keywords:
+      employee: 2
+      employer: 2
+      salary: 1
+      at will: 2
+      probation: 1
+    description: An employment contract between an employer and an employee covering role, salary and termination.
+  lease_agreement:
+    display: Lease agreement
+    query_terms:
+    - lease
+    - leases
+    - lease agreement
+    - lease agreements
+    - rental agreement
+    - rental agreements
+    title_patterns:
+    - \b(equipment\s+|property\s+)?lease(\s+agreement)?\b
+    - \brental\s+agreement\b
+    keywords:
+      lessee: 2
+      lessor: 2
+      monthly payment: 1
+      rent: 1
+    description: A lease or rental agreement for equipment or property with periodic payments.
+  purchase_agreement:
+    display: Purchase agreement
+    query_terms:
+    - purchase agreement
+    - purchase agreements
+    - sales agreement
+    - sales agreements
+    title_patterns:
+    - \b(purchase|sales?)\s+agreement\b
+    keywords:
+      purchaser: 2
+      seller: 1
+      purchase price: 2
+    description: An agreement for the sale and purchase of goods, assets or shares.
+  contract:
+    display: Contract
+    query_terms:
+    - other contract
+    - other contracts
+    title_patterns:
+    - \bagreement\b
+    - \bcontract\b
+    keywords:
+      hereinafter: 1
+      whereas: 1
+      governing law: 1
+      in witness whereof: 2
+    description: A legal agreement between parties with obligations, terms and signatures.
+    title_weight: 2.5
+    generic: true

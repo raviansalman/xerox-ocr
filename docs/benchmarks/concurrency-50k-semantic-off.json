@@ -1,0 +1,408 @@
+{
+  "levels": [
+    {
+      "users": 1,
+      "requests": 360,
+      "errors": {},
+      "error_rate": 0.0,
+      "throughput_rps": 6.0,
+      "latency_ms": {
+        "p50": 167.8,
+        "p95": 408.9,
+        "p99": 461.1
+      },
+      "by_kind_p95_ms": {
+        "aggregate": 372.9,
+        "contextual": 491.8,
+        "count": 182.9,
+        "exact_phrase": 200.6,
+        "filtered": 122.4,
+        "identifier": 215.7,
+        "keyword": 275.4,
+        "lookup": 393.6,
+        "semantic": 276.2,
+        "typo": 89.2
+      },
+      "resources": {
+        "host_cpu_pct": {
+          "avg": 36.7,
+          "max": 91.9
+        },
+        "api": {
+          "cpu_pct": {
+            "avg": 27.4,
+            "max": 38.0
+          },
+          "rss_mb_max": 214
+        },
+        "embedder": {
+          "cpu_pct": {
+            "avg": 0.1,
+            "max": 0.5
+          },
+          "rss_mb_max": 1028
+        },
+        "postgres": {
+          "cpu_pct": {
+            "avg": 71.9,
+            "max": 79.9
+          },
+          "rss_mb_max": 2834
+        },
+        "milvus": {
+          "cpu_pct": {
+            "avg": 22.8,
+            "max": 201.8
+          },
+          "rss_mb_max": 987
+        },
+        "db_connections": {
+          "active": {
+            "avg": 0.7,
+            "max": 1
+          },
+          "total_max": 6
+        }
+      }
+    },
+    {
+      "users": 8,
+      "requests": 1093,
+      "errors": {},
+      "error_rate": 0.0,
+      "throughput_rps": 18.2,
+      "latency_ms": {
+        "p50": 387.3,
+        "p95": 1066.4,
+        "p99": 1395.4
+      },
+      "by_kind_p95_ms": {
+        "aggregate": 846.4,
+        "contextual": 1583.6,
+        "count": 419.3,
+        "exact_phrase": 679.6,
+        "filtered": 347.9,
+        "identifier": 655.1,
+        "keyword": 845.2,
+        "lookup": 1108.6,
+        "semantic": 898.9,
+        "typo": 446.2
+      },
+      "resources": {
+        "host_cpu_pct": {
+          "avg": 96.7,
+          "max": 99.6
+        },
+        "api": {
+          "cpu_pct": {
+            "avg": 86.3,
+            "max": 129.7
+          },
+          "rss_mb_max": 314
+        },
+        "embedder": {
+          "cpu_pct": {
+            "avg": 0.2,
+            "max": 1.0
+          },
+          "rss_mb_max": 1028
+        },
+        "postgres": {
+          "cpu_pct": {
+            "avg": 237.1,
+            "max": 303.1
+          },
+          "rss_mb_max": 5492
+        },
+        "milvus": {
+          "cpu_pct": {
+            "avg": 42.5,
+            "max": 114.1
+          },
+          "rss_mb_max": 1120
+        },
+        "db_connections": {
+          "active": {
+            "avg": 4.6,
+            "max": 8
+          },
+          "total_max": 10
+        }
+      }
+    },
+    {
+      "users": 16,
+      "requests": 1264,
+      "errors": {},
+      "error_rate": 0.0,
+      "throughput_rps": 21.1,
+      "latency_ms": {
+        "p50": 596.0,
+        "p95": 1758.3,
+        "p99": 2189.0
+      },
+      "by_kind_p95_ms": {
+        "aggregate": 1191.7,
+        "contextual": 2365.7,
+        "count": 579.8,
+        "exact_phrase": 1021.9,
+        "filtered": 510.8,
+        "identifier": 1213.7,
+        "keyword": 1477.9,
+        "lookup": 1978.9,
+        "semantic": 1465.7,
+        "typo": 655.8
+      },
+      "resources": {
+        "host_cpu_pct": {
+          "avg": 96.8,
+          "max": 99.4
+        },
+        "api": {
+          "cpu_pct": {
+            "avg": 102.0,
+            "max": 133.3
+          },
+          "rss_mb_max": 392
+        },
+        "embedder": {
+          "cpu_pct": {
+            "avg": 0.1,
+            "max": 0.5
+          },
+          "rss_mb_max": 1028
+        },
+        "postgres": {
+          "cpu_pct": {
+            "avg": 259.1,
+            "max": 303.6
+          },
+          "rss_mb_max": 9854
+        },
+        "milvus": {
+          "cpu_pct": {
+            "avg": 3.5,
+            "max": 7.5
+          },
+          "rss_mb_max": 674
+        },
+        "db_connections": {
+          "active": {
+            "avg": 7.1,
+            "max": 13
+          },
+          "total_max": 20
+        }
+      }
+    },
+    {
+      "users": 32,
+      "requests": 1277,
+      "errors": {},
+      "error_rate": 0.0,
+      "throughput_rps": 21.3,
+      "latency_ms": {
+        "p50": 1282.5,
+        "p95": 3378.3,
+        "p99": 4456.5
+      },
+      "by_kind_p95_ms": {
+        "aggregate": 2007.8,
+        "contextual": 4892.1,
+        "count": 1065.5,
+        "exact_phrase": 2150.7,
+        "filtered": 996.9,
+        "identifier": 2487.7,
+        "keyword": 2839.6,
+        "lookup": 3777.0,
+        "semantic": 2921.5,
+        "typo": 1387.5
+      },
+      "resources": {
+        "host_cpu_pct": {
+          "avg": 97.9,
+          "max": 99.6
+        },
+        "api": {
+          "cpu_pct": {
+            "avg": 106.0,
+            "max": 128.9
+          },
+          "rss_mb_max": 523
+        },
+        "embedder": {
+          "cpu_pct": {
+            "avg": 0.1,
+            "max": 0.5
+          },
+          "rss_mb_max": 1028
+        },
+        "postgres": {
+          "cpu_pct": {
+            "avg": 269.6,
+            "max": 293.4
+          },
+          "rss_mb_max": 18560
+        },
+        "milvus": {
+          "cpu_pct": {
+            "avg": 3.4,
+            "max": 7.0
+          },
+          "rss_mb_max": 682
+        },
+        "db_connections": {
+          "active": {
+            "avg": 10.5,
+            "max": 21
+          },
+          "total_max": 35
+        }
+      }
+    },
+    {
+      "users": 64,
+      "requests": 1273,
+      "errors": {},
+      "error_rate": 0.0,
+      "throughput_rps": 21.2,
+      "latency_ms": {
+        "p50": 2595.6,
+        "p95": 6558.5,
+        "p99": 7681.2
+      },
+      "by_kind_p95_ms": {
+        "aggregate": 3918.8,
+        "contextual": 8550.8,
+        "count": 2323.8,
+        "exact_phrase": 4036.5,
+        "filtered": 1864.3,
+        "identifier": 4796.2,
+        "keyword": 5271.5,
+        "lookup": 6855.9,
+        "semantic": 5807.9,
+        "typo": 2908.0
+      },
+      "resources": {
+        "host_cpu_pct": {
+          "avg": 98.8,
+          "max": 99.9
+        },
+        "api": {
+          "cpu_pct": {
+            "avg": 111.7,
+            "max": 126.8
+          },
+          "rss_mb_max": 667
+        },
+        "embedder": {
+          "cpu_pct": {
+            "avg": 0.1,
+            "max": 0.5
+          },
+          "rss_mb_max": 1028
+        },
+        "postgres": {
+          "cpu_pct": {
+            "avg": 267.5,
+            "max": 292.2
+          },
+          "rss_mb_max": 35863
+        },
+        "milvus": {
+          "cpu_pct": {
+            "avg": 3.4,
+            "max": 8.0
+          },
+          "rss_mb_max": 685
+        },
+        "db_connections": {
+          "active": {
+            "avg": 15.4,
+            "max": 34
+          },
+          "total_max": 66
+        }
+      }
+    },
+    {
+      "users": 100,
+      "requests": 1170,
+      "errors": {},
+      "error_rate": 0.0,
+      "throughput_rps": 19.5,
+      "latency_ms": {
+        "p50": 4445.7,
+        "p95": 9270.5,
+        "p99": 10771.7
+      },
+      "by_kind_p95_ms": {
+        "aggregate": 5881.6,
+        "contextual": 11381.0,
+        "count": 3895.7,
+        "exact_phrase": 6572.7,
+        "filtered": 3674.5,
+        "identifier": 7539.3,
+        "keyword": 8350.8,
+        "lookup": 10164.1,
+        "semantic": 9414.0,
+        "typo": 4970.5
+      },
+      "resources": {
+        "host_cpu_pct": {
+          "avg": 98.5,
+          "max": 99.9
+        },
+        "api": {
+          "cpu_pct": {
+            "avg": 120.4,
+            "max": 148.0
+          },
+          "rss_mb_max": 724
+        },
+        "embedder": {
+          "cpu_pct": {
+            "avg": 0.1,
+            "max": 0.5
+          },
+          "rss_mb_max": 1028
+        },
+        "postgres": {
+          "cpu_pct": {
+            "avg": 261.2,
+            "max": 287.6
+          },
+          "rss_mb_max": 44561
+        },
+        "milvus": {
+          "cpu_pct": {
+            "avg": 3.4,
+            "max": 7.4
+          },
+          "rss_mb_max": 684
+        },
+        "db_connections": {
+          "active": {
+            "avg": 14.5,
+            "max": 29
+          },
+          "total_max": 84
+        }
+      }
+    }
+  ],
+  "duration_s": 60.0,
+  "kinds": [
+    "identifier",
+    "exact_phrase",
+    "keyword",
+    "typo",
+    "semantic",
+    "contextual",
+    "count",
+    "aggregate",
+    "filtered",
+    "lookup"
+  ],
+  "cpus": 4
+}

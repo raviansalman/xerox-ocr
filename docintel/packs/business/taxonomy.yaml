@@ -1,0 +1,34 @@
+families:
+  correspondence:
+  - press_release
+family_terms: {}
+types:
+  press_release:
+    display: Press release
+    query_terms:
+    - press release
+    - press releases
+    - news release
+    - news releases
+    title_patterns:
+    - \bfor\s+immediate\s+release\b
+    - \bpress\s+release\b
+    keywords:
+      media contact: 2
+      announces: 1
+    description: A press release announcing news to the media.
+  policy:
+    display: Policy or procedure
+    query_terms:
+    - policy
+    - policies
+    - procedure
+    - procedures
+    title_patterns:
+    - \bpolicy\b
+    - \bprocedure\b
+    keywords:
+      employees must: 1
+      this policy: 2
+      procedure: 1
+    description: An internal policy or procedure describing rules employees must follow.
