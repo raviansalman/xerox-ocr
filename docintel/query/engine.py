@@ -312,6 +312,10 @@ class QueryEngineV2(QueryEngine):
         ids = self._doc_set(conn, ctx, plan, plan.filters)
         answer, valued = compute.amounts(conn, plan, ids)
         timings["aggregate"] = round((time.perf_counter() - t) * 1000, 1)
+        if answer["kind"] == "none":
+            fallback = _search_fallback(self, conn, ctx, plan, limit, timings, answer)
+            if fallback:
+                return fallback
         return {"answer": answer, "results": self._evidence(conn, plan, valued, limit), "total": len(valued)}
 
     def _lookup(self, conn, ctx, plan: QueryPlan, limit: int, timings: dict) -> dict:
@@ -386,6 +390,19 @@ class QueryEngineV2(QueryEngine):
             return []
         rows = conn.execute(f"SELECT d.id FROM documents d WHERE {where.sql}", where.args).fetchall()
         return [str(r["id"]) for r in rows]
+
+
+def _search_fallback(engine, conn, ctx, plan: QueryPlan, limit: int, timings: dict, answer: dict) -> dict | None:
+    """A calculation with nothing to compute ("how much did we spend on office supplies" when no amount was
+    extracted) still shows the documents an ordinary search finds, under the honest "no amounts" answer."""
+    # the whole question carries the meaning ("how much did we spend on office supplies"); the residual text of a
+    # calculation ("we on office supplies") is too fragmentary to embed
+    search_plan = plan.__class__(**{**plan.__dict__, "intent": "search", "semantic_text": plan.question})
+    found = engine._search(conn, ctx, search_plan, limit, timings)
+    if not found["results"]:
+        return None
+    answer = dict(answer, note="Nothing to compute from extracted fields; the documents below match the question.")
+    return {"answer": answer, "results": found["results"], "total": found["total"]}
 
 
 def resolve_entities(conn, grams: list[str]) -> list[dict]:

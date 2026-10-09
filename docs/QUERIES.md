@@ -88,7 +88,8 @@ and `records` (document, value, page, character span).
 | Field lookup | `What is the invoice number of the Northgate Utilities invoice?`, `When does the service contract expire?` (value, document, page, span) |
 | Figure stated in a document | `How many days notice is required to terminate the service contract?` (quoted from the relation that states it) |
 
-Documents without a value are counted and reported, not silently dropped.
+Documents without a value are counted and reported, not silently dropped. When nothing can be computed (no extracted amounts), the answer says so and the documents an
+ordinary search finds for the question are listed below it.
 
 ## Grounded answers (optional)
 

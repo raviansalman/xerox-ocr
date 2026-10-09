@@ -72,6 +72,7 @@ class Settings(BaseSettings):
     job_heartbeat_sec: int = 30
 
     # Processing
+    date_order: Literal["dmy", "mdy"] = "dmy"    # reading of all-numeric dates like 03/09/2024 (mdy for US documents)
     ocr_languages: str = "eng"
     ocr_dpi: int = 250
     ocr_page_timeout_sec: int = 180              # per page; a page that takes longer fails the document

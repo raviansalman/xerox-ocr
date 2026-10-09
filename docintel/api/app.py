@@ -170,7 +170,10 @@ def ready():
             ok, checks["vector_index"] = False, {"ok": False, "error": type(e).__name__}
         try:
             from docintel.indexing.embeddings import get_embedder
-            get_embedder().verify()
+            emb = get_embedder()
+            emb.verify()                                # the model contract, checked once
+            if hasattr(emb, "ping"):
+                emb.ping()                              # reachable now: an outage after start-up turns readiness red
             checks["embedder"] = {"ok": True, "model": get_settings().embedding_model}
         except Exception as e:
             ok, checks["embedder"] = False, {"ok": False, "error": str(e)[:200]}

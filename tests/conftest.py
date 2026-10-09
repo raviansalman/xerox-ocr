@@ -35,6 +35,7 @@ KEYS = {
     "quill_uploader": ("tenantquill", ["uploader", "reader"]),
     "vault_uploader": ("tenantvault", ["uploader", "reader"]), "vault_admin": ("tenantvault", ["admin"]),
     "arabic_uploader": ("tenantarabic", ["uploader", "reader"]),
+    "fixes_uploader": ("tenantfixes", ["uploader", "reader"]),
     "service": (None, ["service"]),
 }
 

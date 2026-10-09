@@ -66,7 +66,12 @@ def _make(y: int, m: int, d: int) -> date | None:
         return None
 
 
-def find_dates(text: str, day_first: bool = True, domain: Domain | None = None) -> list[FoundDate]:
+def find_dates(text: str, day_first: bool | None = None, domain: Domain | None = None) -> list[FoundDate]:
+    """Dates in a text. An all-numeric date whose day and month are both 12 or less (03/09/2024) is read in the
+    configured order (DOCINTEL_DATE_ORDER: dmy by default, mdy for US documents) unless ``day_first`` is given."""
+    if day_first is None:
+        from docintel.config import get_settings
+        day_first = get_settings().date_order == "dmy"
     roles = (domain or default_domain()).date_roles
     found: list[FoundDate] = []
     taken: list[tuple[int, int]] = []

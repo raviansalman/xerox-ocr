@@ -116,3 +116,12 @@ def test_lam_alef_order_corruption_is_detected():
 
 def test_is_arabic_word():
     assert T.is_arabic_word("طابعه") and not T.is_arabic_word("printer") and not T.is_arabic_word("inv2024")
+
+
+@pytest.mark.parametrize("order,expected", [("dmy", "2024-09-03"), ("mdy", "2024-03-09")])
+def test_ambiguous_numeric_dates_follow_the_configured_order(order, expected, monkeypatch):
+    from docintel.config import get_settings
+    from docintel.understanding.dates import find_dates
+    monkeypatch.setattr(get_settings(), "date_order", order)
+    assert [d.value.isoformat() for d in find_dates("Date: 03/09/2024")] == [expected]
+    assert [d.value.isoformat() for d in find_dates("Date: 25/09/2024")] == ["2024-09-25"]   # unambiguous either way

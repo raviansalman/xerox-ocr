@@ -89,6 +89,16 @@ def _identifier_only(plan: QueryPlan) -> bool:
         re.sub(r"[^0-9a-z]", "", w.casefold()) in plan.identifiers for w in words)
 
 
+def _titled(conn: psycopg.Connection, question: str) -> set[str]:
+    """Documents whose file name or title contains the whole question (two words or more), as words."""
+    st = T.search_text(question)
+    if len(st.split()) < 2:
+        return set()
+    rows = conn.execute("SELECT id, title FROM documents WHERE status = 'indexed' AND (filename_search LIKE %s "
+                        "OR title ILIKE %s) LIMIT 50", (f"%{st}%", f"%{question.strip()}%")).fetchall()
+    return {str(r["id"]) for r in rows}
+
+
 class QueryEngine:
     def __init__(self):
         self.settings = get_settings()
@@ -225,6 +235,12 @@ class QueryEngine:
             f = Filters(doc_types=f.doc_types)
         where = R.filter_where(f)
         allowed = R.allowed_documents(conn, where, self.settings.structured_id_limit)
+        if allowed is not None:
+            # a question that is a document's own title or file name ("Q3 2024 Print Review") finds that document even
+            # when words in it also read as a filter (a quarter, a year) that the document's dates do not satisfy
+            titled = _titled(conn, plan.question)
+            if titled - set(allowed):
+                allowed = sorted(set(allowed) | titled)
         has_text = bool(T.tokens(plan.text) or plan.phrases or plan.identifiers)
         semantic_ok = True
         if has_text:
@@ -403,6 +419,12 @@ class QueryEngine:
             answer = {"kind": "table", "rows": table, "text": f"{label}: " + "; ".join(parts) + ".",
                       "note": "Amounts are grouped by currency; currencies are never added together."}
         timings["aggregate"] = round((time.perf_counter() - t) * 1000, 1)
+        if not table:                                # nothing to compute: show what an ordinary search finds
+            found = self._search(conn, ctx, plan.__class__(**{**plan.__dict__, "intent": "search", "semantic_text": plan.question}),
+                                 limit, timings)
+            if found["results"]:
+                answer["note"] = "Nothing to compute from extracted fields; the documents below match the question."
+                return {"answer": answer, "results": found["results"], "total": found["total"]}
         return {"answer": answer, "results": self._evidence(conn, plan, with_values, limit), "total": len(with_values)}
 
     # ------------------------------------------------------------------------------------------------ lookup / facts

@@ -9,8 +9,9 @@ Ranking keys, in order:
    additional independent retriever that agrees and a preference for the question's soft document types.
 
 Rules that remove documents:
-* a query made only of identifiers returns only documents with lexical evidence (embeddings of a code carry no
-  meaning);
+* a query made only of identifiers returns only documents that contain the identifier (exactly, in part, OCR-tolerant,
+  in the file name or in an extracted field): word overlap ("INV" and "2024" of another invoice number), typo
+  correction and embeddings do not count, since a code that differs by one digit is a different document;
 * a quoted phrase must appear (exactly, OCR-tolerant or as a file name);
 * typo-corrected matches are used only when nothing else matched lexically;
 * semantic-only documents below the calibrated floor never reach this module (SemanticRetriever).
@@ -28,6 +29,8 @@ AGREEMENT_BONUS = 0.0015
 SOFT_TYPE_BONUS = 0.006
 _PHRASE_EVIDENCE = {"exact_phrase", "exact_identifier", "ocr_tolerant", "fuzzy", "filename"}
 _TOLERANT = {"ocr_tolerant", "fuzzy", "most_terms"}
+_IDENTIFIER_EVIDENCE = {"exact_identifier", "exact_phrase", "exact_term", "joined_form", "partial_identifier", "filename",
+                        "ocr_tolerant", "structured", "entity"}
 # order of lexical evidence inside a tier (lower first)
 _PRIORITY = {"exact_phrase": 0, "exact_identifier": 0, "filename": 0, "structured": 0, "exact_term": 1, "joined_form": 1,
              "metadata": 1, "entity": 1, "relation": 1, "concept_clause": 1, "partial_identifier": 2, "all_terms": 2,
@@ -103,7 +106,7 @@ def fuse(plan: QueryPlan, candidates: list[Candidate], doc_types: dict[str, str 
             seen.add(c.document_id)
 
     if identifier_only(plan):
-        docs = {k: d for k, d in docs.items() if any(c.match_type != "semantic" for c in d.candidates)}
+        docs = {k: d for k, d in docs.items() if {c.match_type for c in d.candidates} & _IDENTIFIER_EVIDENCE}
     elif plan.phrases:
         docs = {k: d for k, d in docs.items() if {c.match_type for c in d.candidates} & _PHRASE_EVIDENCE}
 

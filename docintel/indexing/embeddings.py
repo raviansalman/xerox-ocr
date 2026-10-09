@@ -47,6 +47,12 @@ class EmbeddingClient:
                                      f"engine is configured for {self.spec.key} ({self.spec.dimension} dims)")
             self._checked = True
 
+    def ping(self, timeout: float = 3.0) -> None:
+        """Raise unless the service answers now (readiness): ``verify`` checks the model once, this checks liveness
+        on every call."""
+        r = self._client.get(f"{self.base_url}/health", timeout=timeout)
+        r.raise_for_status()
+
     def _post(self, texts: list[str], kind: str) -> np.ndarray:
         last: Exception | None = None
         for attempt in range(4):

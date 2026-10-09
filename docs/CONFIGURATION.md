@@ -51,6 +51,7 @@ can bypass row-level security.
 | `DOCINTEL_TASK_TIME_LIMIT_SEC` | 1800 | Celery hard limit per document |
 | `DOCINTEL_JOB_HEARTBEAT_SEC` | 30 | A running job marks itself alive this often; one silent for 4 beats (at least 2 minutes) is requeued |
 | **Processing** | | |
+| `DOCINTEL_DATE_ORDER` | `dmy` | how all-numeric dates with day and month both 12 or less are read (`03/09/2024`): `dmy` = 3 September, `mdy` = March 9 (US documents). Used for documents and questions alike; reprocess documents after changing it |
 | `DOCINTEL_OCR_LANGUAGES` | `eng` (`ara+eng` in `deploy/docker-compose.yml`) | Tesseract languages (the language packs must be installed; the image has English and Arabic). `ara+eng` reads Arabic and English pages, with no measured loss on English |
 | `DOCINTEL_OCR_DPI` | 250 | render resolution for scanned pages |
 | `DOCINTEL_OCR_PAGE_TIMEOUT_SEC` | 180 | OCR time limit per page; a page over it fails the document with the reason |
