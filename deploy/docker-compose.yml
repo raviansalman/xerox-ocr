@@ -17,6 +17,7 @@ x-app: &app
     DOCINTEL_MILVUS_URI: http://milvus:19530
     DOCINTEL_EMBEDDER_URL: http://embedder:8080
     DOCINTEL_EMBEDDING_MODEL: ${DOCINTEL_EMBEDDING_MODEL:-all-mpnet-base-v2}
+    DOCINTEL_OCR_LANGUAGES: ${DOCINTEL_OCR_LANGUAGES:-ara+eng}     # Arabic and English scans; English accuracy unchanged
     DOCINTEL_TASK_MODE: celery
     DOCINTEL_REDIS_URL: redis://:${DOCINTEL_REDIS_PASSWORD:?set DOCINTEL_REDIS_PASSWORD}@redis:6379/0
     DOCINTEL_API_KEYS_FILE: /run/secrets/api_keys

@@ -28,10 +28,17 @@ def detect_signatures(image: Image.Image, words: list[Word]) -> list[Region]:
     _, ink = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
     heights = sorted(wd.y1 - wd.y0 for wd in words if wd.text.strip())
     line_h = heights[len(heights) // 2] if heights else max(12.0, h / 60)
-    # 1. remove printed words
+    # 1. remove printed words: confident words, and less confident ones inside a line of printed text (cursive
+    #    scripts such as Arabic are often read with lower confidence; a signature stands alone or beside one label)
     pad = max(2, int(line_h * 0.15))
+    confident = [wd for wd in words if wd.conf >= 60 and any(c.isalnum() for c in wd.text)]
+
+    def in_printed_line(wd: Word) -> bool:
+        mid = (wd.y0 + wd.y1) / 2
+        return sum(1 for o in confident if o is not wd and o.y0 <= mid <= o.y1) >= 2
+
     for wd in words:
-        if wd.conf >= 60 and any(c.isalnum() for c in wd.text):    # misread scribbles have low confidence
+        if (wd.conf >= 60 and any(c.isalnum() for c in wd.text)) or (wd.text.strip() and in_printed_line(wd)):
             cv2.rectangle(ink, (int(wd.x0) - pad, int(wd.y0) - pad), (int(wd.x1) + pad, int(wd.y1) + pad), 0, -1)
     # 2. remove ruled lines (long horizontal/vertical runs)
     for k in ((max(40, w // 15), 1), (1, max(40, h // 15))):

@@ -34,8 +34,19 @@ KEYS = {
     "haystack_uploader": ("haystack", ["uploader"]), "carol_reader": ("carol", ["reader"]),
     "quill_uploader": ("tenantquill", ["uploader", "reader"]),
     "vault_uploader": ("tenantvault", ["uploader", "reader"]), "vault_admin": ("tenantvault", ["admin"]),
+    "arabic_uploader": ("tenantarabic", ["uploader", "reader"]),
     "service": (None, ["service"]),
 }
+
+
+def _ocr_languages() -> str:
+    """ara+eng when the Arabic Tesseract model is installed (as in the image), so the English suite also runs with
+    the deployed OCR setting; eng otherwise."""
+    try:
+        import pytesseract
+        return "ara+eng" if "ara" in pytesseract.get_languages(config="") else "eng"
+    except Exception:
+        return "eng"
 
 
 def raw_key(name: str) -> str:
@@ -78,6 +89,7 @@ def pytest_configure(config):
     os.environ["DOCINTEL_AUTH_MODE"] = "keys"
     os.environ["DOCINTEL_LOG_JSON"] = "false"
     os.environ.setdefault("DOCINTEL_TASK_MODE", "inline")
+    os.environ.setdefault("DOCINTEL_OCR_LANGUAGES", _ocr_languages())
     os.environ["DOCINTEL_URL_FETCH_ENABLED"] = "true"           # off by default; the SSRF guard is tested here
     if INTEGRATION:
         url = os.environ.get("DOCINTEL_TEST_DATABASE_URL")

@@ -44,6 +44,44 @@ def render_lines(lines: list[str], size_pt: float = 13, dpi: int = 200, width_in
     return img
 
 
+ARABIC_FONT = str(Path(__file__).parent / "fonts" / "NotoNaskhArabic-Regular.ttf")   # SIL OFL, see fonts/OFL.txt
+
+
+def render_arabic_lines(lines: list[str], size_pt: float = 14, dpi: int = 200, width_in: float = 8.27,
+                        height_in: float = 5.0):
+    """A scan of right-to-left lines, shaped and ordered by Pillow's raqm layout (needs libraqm and FriBiDi).
+    Arabic lines use a Naskh face, as printed Arabic documents do; Noto Naskh has no Latin letters, so lines without
+    Arabic (references, model names) are set in DejaVu Sans."""
+    from PIL import Image, ImageDraw, ImageFont
+    w, h = int(width_in * dpi), int(height_in * dpi)
+    img = Image.new("L", (w, h), 255)
+    d = ImageDraw.Draw(img)
+    px = int(size_pt * dpi / 72)
+    arabic = ImageFont.truetype(ARABIC_FONT, px, layout_engine=ImageFont.Layout.RAQM)
+    latin = ImageFont.truetype(FONT, px, layout_engine=ImageFont.Layout.RAQM)
+    y = int(0.4 * dpi)
+    for line in lines:
+        is_ar = any("\u0600" <= c <= "\u06ff" for c in line)
+        if is_ar:
+            d.text((w - int(0.7 * dpi), y), line, font=arabic, fill=0, direction="rtl", anchor="ra")
+        else:
+            d.text((w - int(0.7 * dpi), y), line, font=latin, fill=0, anchor="ra")
+        y += int(size_pt * dpi / 72 * 1.8)
+    return img
+
+
+def scanned_arabic_pdf(path: Path, pages: list[list[str]]) -> Path:
+    import fitz
+    doc = fitz.open()
+    for lines in pages:
+        buf = io.BytesIO()
+        render_arabic_lines(lines).save(buf, format="PNG")
+        page = doc.new_page(width=595, height=842)
+        page.insert_image(fitz.Rect(0, 0, 595, 360), stream=buf.getvalue())
+    doc.save(str(path))
+    return path
+
+
 def scanned_pdf(path: Path, pages: list[list[str]], signature_on_last: bool = False) -> Path:
     import fitz
     doc = fitz.open()

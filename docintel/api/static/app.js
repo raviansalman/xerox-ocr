@@ -38,19 +38,49 @@ function h(tag, attrs, ...children) {
 }
 const $ = (id) => document.getElementById(id);
 
+// Arabic folding as in docintel/text.py: the terms come back normalized ("المكتبه"), the text is as written
+// ("المكتبةُ"), so both are compared folded and matches are mapped back to the original characters.
+const AR_DROP = /[\u0640\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E4\u06E7\u06E8\u06EA-\u06ED\u200C-\u200F]/;
+const AR_MAP = { "آ": "ا", "أ": "ا", "إ": "ا", "ٱ": "ا", "ى": "ي", "ة": "ه", "ؤ": "و", "ئ": "ي", "ی": "ي", "ک": "ك" };
+for (let i = 0; i < 10; i++) { AR_MAP[String.fromCharCode(0x0660 + i)] = String(i); AR_MAP[String.fromCharCode(0x06F0 + i)] = String(i); }
+
+function folded(text) {
+  // folded text plus, for each folded character, the index of the original character it came from
+  let out = "";
+  const at = [];
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (AR_DROP.test(c)) continue;
+    const low = (AR_MAP[c] || c).toLowerCase();
+    out += low.length === 1 ? low : c;
+    at.push(i);
+  }
+  return { out, at };
+}
+
+function textDir(text) {
+  // direction of a text from its first letter, so a leading label such as "p. 1" does not decide it
+  const m = (text || "").match(/[A-Za-z\u00C0-\u024F\u0590-\u08FF]/);
+  return m && m[0] >= "\u0590" ? "rtl" : "ltr";
+}
+
 function highlight(text, terms) {
   // Split text around case-insensitive term matches and wrap them in <mark> (built as nodes, not HTML).
   const frag = document.createDocumentFragment();
-  const usable = (terms || []).filter((t) => t && t.length > 1).sort((a, b) => b.length - a.length);
+  const usable = (terms || []).map((t) => folded(t || "").out).filter((t) => t.length > 1).sort((a, b) => b.length - a.length);
   if (!usable.length) { frag.append(text); return frag; }
   // whole words only ("inv" must not light up "Invoice"); a space in a term also matches - / . # _
   const esc = usable.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "[\\s\\-/.#_]+"));
   const re = new RegExp("(?<![\\p{L}\\p{N}])(" + esc.join("|") + ")(?![\\p{L}\\p{N}])", "giu");
+  const f = folded(text);
   let last = 0;
-  for (const m of text.matchAll(re)) {
-    if (m.index > last) frag.append(text.slice(last, m.index));
-    frag.append(h("mark", {}, m[0]));
-    last = m.index + m[0].length;
+  for (const m of f.out.matchAll(re)) {
+    const start = f.at[m.index];
+    let end = f.at[m.index + m[0].length - 1] + 1;
+    while (end < text.length && AR_DROP.test(text[end])) end++;   // keep trailing diacritics inside the mark
+    if (start > last) frag.append(text.slice(last, start));
+    frag.append(h("mark", {}, text.slice(start, end)));
+    last = end;
   }
   if (last < text.length) frag.append(text.slice(last));
   return frag;
@@ -134,7 +164,7 @@ function renderAnswer(out) {
     parts.push(h("div", { class: "big", "data-testid": "answer-value" }, a.unit === "%" ? `${a.value}%` : String(a.value)));
   } else if (a.kind === "figure") {
     parts.push(h("div", { class: "big", "data-testid": "answer-value" }, `${a.value} ${a.unit}`));
-    parts.push(h("blockquote", {}, a.snippet));
+    parts.push(h("blockquote", { dir: "auto" }, a.snippet));
   } else if (a.kind === "table" && a.rows) {
     const cols = Object.keys(a.rows[0] || {}).filter((c) => c !== "key" || !a.rows[0].label);
     parts.push(h("table", { class: "mini", "data-testid": "answer-table" },
@@ -143,7 +173,7 @@ function renderAnswer(out) {
   } else if (a.kind === "fields" && a.rows) {
     parts.push(h("div", { class: "big", "data-testid": "answer-value" }, a.rows[0].value));
   }
-  parts.push(h("p", { class: "answer-text", "data-testid": "answer-text" }, a.text || ""));
+  parts.push(h("p", { class: "answer-text", dir: "auto", "data-testid": "answer-text" }, a.text || ""));
   if (a.note) parts.push(h("p", { class: "muted" }, a.note));
   if (a.degraded) parts.push(h("p", { class: "warn" }, a.degraded));
   const t = out.timings_ms || {};
@@ -157,7 +187,7 @@ function renderResults(out) {
     const fields = Object.entries(r.fields || {}).slice(0, 6).map(([k, v]) => h("span", { class: "field" }, h("b", {}, k.replace(/_/g, " ")), " ", v));
     return h("article", { class: "card", "data-testid": "result", dataset: { doc: r.document_id } },
       h("div", { class: "card-head" },
-        h("button", { class: "title link", onclick: () => openDoc(r.document_id), "data-testid": "result-title" }, r.title || r.filename),
+        h("button", { class: "title link", dir: "auto", onclick: () => openDoc(r.document_id), "data-testid": "result-title" }, r.title || r.filename),
         h("span", { class: "muted small" }, r.filename)),
       h("div", { class: "badges" },
         badge(r.doc_type_label || "Unclassified", "type"),
@@ -165,7 +195,7 @@ function renderResults(out) {
         badge(`confidence ${Math.round(r.confidence * 100)}%`, "conf"),
         r.has_signature ? badge("signature", "sig") : null),
       fields.length ? h("div", { class: "fields" }, ...fields) : null,
-      ...r.snippets.map((s) => h("p", { class: "snippet" },
+      ...r.snippets.map((s) => h("p", { class: "snippet", dir: textDir(s.text) },
         h("span", { class: "page" }, `p. ${s.page}`), " ", highlight(s.text, terms))));
   });
   $("results").replaceChildren(...cards);
@@ -214,7 +244,7 @@ async function loadDocs() {
     if (seq !== state.docsSeq) return;               // a newer request (filter, delete, page) owns the table now
     state.total = out.total;
     $("docRows").replaceChildren(...out.documents.map((d) => h("tr", { "data-testid": "doc-row", dataset: { doc: d.id, status: d.status } },
-      h("td", {}, h("button", { class: "link", onclick: () => openDoc(d.id) }, d.title && d.title !== d.filename ? d.title : d.filename),
+      h("td", {}, h("button", { class: "link", dir: "auto", onclick: () => openDoc(d.id) }, d.title && d.title !== d.filename ? d.title : d.filename),
         h("div", { class: "muted small" }, `${d.filename} · ${fmtSize(d.size_bytes)}`)),
       h("td", {}, d.doc_type_label || "—"),
       h("td", {}, statusBadge(d.status), d.error ? h("div", { class: "error small" }, d.error) : null),
@@ -295,7 +325,7 @@ async function openDoc(id) {
     section("People, organizations and identifiers", (d.entities || []).length ? h("div", { class: "fields" },
       ...d.entities.map((e) => h("span", { class: "field" }, h("b", {}, e.role ? `${e.type} · ${e.role}` : e.type), " ", e.value))) : h("p", { class: "muted" }, "None found.")),
     section("Clauses", (d.clauses || []).length ? h("div", {},
-      ...d.clauses.map((c) => h("details", {}, h("summary", {}, `${c.clause_type.replace(/_/g, " ")}${c.ref ? ` · ${c.ref}` : ""} · p. ${c.page}`), h("p", {}, c.text)))) : h("p", { class: "muted" }, "None found.")),
+      ...d.clauses.map((c) => h("details", {}, h("summary", {}, `${c.clause_type.replace(/_/g, " ")}${c.ref ? ` · ${c.ref}` : ""} · p. ${c.page}`), h("p", { dir: "auto" }, c.text)))) : h("p", { class: "muted" }, "None found.")),
     section("Pages", h("div", { class: "row wrap" }, ...pageButtons), pageView));
   if (pageButtons.length) showPage(d.id, 1, pageView);
 }
@@ -311,7 +341,7 @@ async function showPage(id, n, target) {
       img.src = URL.createObjectURL(await res.blob());
       parts.push(img);
     } catch (_) { /* no image for this format */ }
-    parts.push(h("pre", { class: "page-text" }, p.text || "(no text)"));
+    parts.push(h("pre", { class: "page-text", dir: "auto" }, p.text || "(no text)"));
     target.replaceChildren(...parts);
   } catch (e) { target.replaceChildren(h("p", { class: "error" }, e.message)); }
 }

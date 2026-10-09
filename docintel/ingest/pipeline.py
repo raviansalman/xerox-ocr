@@ -37,7 +37,7 @@ from docintel.storage.objects import get_object_store
 from docintel.understanding import analyze
 
 logger = logging.getLogger(__name__)
-PIPELINE_VERSION = "2.0.0"
+PIPELINE_VERSION = "2.1.0"   # 2.1.0: Arabic normalization and light stems, page orientation correction
 DOCUMENT_VECTOR_MIN_PASSAGES = 3
 
 

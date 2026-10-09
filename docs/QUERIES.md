@@ -34,6 +34,26 @@ character span, re-read from the stored text. When nothing reliable is found the
 `{"kind": "none", "text": "No sufficiently reliable evidence was found for this question."}`; when every result
 is related only by meaning, the answer says so.
 
+## Arabic
+
+Arabic text is normalized the same way when it is indexed and when it is searched: diacritics, tatweel and invisible
+marks are ignored, alef forms (أ إ آ ٱ), ى/ي, ة/ه and the hamza seats ؤ ئ are folded, and Arabic-Indic digits equal
+ASCII digits. Words are reduced to light stems (articles, attached prepositions and common suffixes removed), so
+`طابعة` finds `الطابعات` and `للعقد` finds `العقد`. Broken plurals (`عقود` for `عقد`) are not stemmed; meaning search
+covers them.
+
+| Kind | Examples |
+|---|---|
+| Phrase, any spelling | `محطة تحلية المياه`, `تحليه المياه`, `تَحْلِيَة المِيَاه` |
+| Identifiers | `WDP-2024/017`, `CON-٢٠٢٤/٠٧٧` (same as `CON-2024/077`) |
+| Names | `احمد الزهراني` finds `أحمد الزهراني` |
+| Meaning (multilingual model) | `ما هي مدة عقد الصيانة؟`; English questions find Arabic documents and the reverse |
+
+Meaning search in Arabic needs `DOCINTEL_EMBEDDING_MODEL=paraphrase-multilingual-mpnet-base-v2` (the embedding
+service must be built with the same model; documents are reprocessed after a model change). With the default English
+model, Arabic phrases, words, names and identifiers are still found. The question planner (counts, totals, date
+filters) and document types, fields and clauses understand English questions and documents only.
+
 ## Filters
 
 Filters combine with each other and with search text.

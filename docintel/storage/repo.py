@@ -171,11 +171,12 @@ def replace_content(conn: psycopg.Connection, *, tenant_id: str, doc_id: str, co
     for cid, c in zip(content.chunk_ids, content.chunks, strict=True):
         searchable = f"{c.context} {c.text}" if c.context else c.text
         rows.append((cid, doc_id, tenant_id, c.ordinal, c.page_start, c.page_end, c.heading, c.text,
-                     T.search_text(searchable), T.fold(searchable), sorted(T.identifiers(searchable)), c.unit_type,
-                     c.char_start, c.char_end, c.block_from, c.block_to, c.context))
+                     T.search_text(searchable), T.stem_text(searchable), T.fold(searchable),
+                     sorted(T.identifiers(searchable)), c.unit_type, c.char_start, c.char_end, c.block_from, c.block_to,
+                     c.context))
     _bulk(conn, "chunks", ("id", "document_id", "tenant_id", "ordinal", "page_start", "page_end", "heading", "text",
-                           "search_text", "fold_text", "idents", "unit_type", "char_start", "char_end", "block_from",
-                           "block_to", "context"), rows)
+                           "search_text", "stem_text", "fold_text", "idents", "unit_type", "char_start", "char_end",
+                           "block_from", "block_to", "context"), rows)
     _bulk(conn, "fields", ("document_id", "tenant_id", "name", "value_text", "value_num", "value_date", "unit", "page",
                            "snippet", "confidence", "method", "char_start", "char_end", "block_ordinal"),
           [(doc_id, tenant_id, f.name, f.value_text, f.value_num, f.value_date, f.unit, f.page, f.snippet, f.confidence,

@@ -136,7 +136,7 @@ def lexical(conn: psycopg.Connection, plan: QueryPlan, allowed: list[str] | None
     # 2. the whole residual text as an exact phrase (single word: exact token)
     if words:
         tiers.append(("exact_phrase" if len(words) > 1 else "exact_term", "c.tsv @@ phraseto_tsquery('simple', %s)", [qs]))
-        rank_sql, rank_args = "ts_rank_cd(c.tsv_en, plainto_tsquery('english', %s))", [qs]
+        rank_sql, rank_args = "ts_rank_cd(c.tsv_en, plainto_tsquery('english', %s))", [T.stem_text(qs)]
     # 3. joined/split variants ("Data Vault" ~ "DataVault")
     for v in T.join_variants(words):
         tiers.append(("joined_form", "c.tsv @@ phraseto_tsquery('simple', %s)", [v]))
@@ -144,9 +144,9 @@ def lexical(conn: psycopg.Connection, plan: QueryPlan, allowed: list[str] | None
     for w in words:
         if len(w) >= 4 and any(ch.isdigit() for ch in w) and not re.fullmatch(r"(?:19|20)\d{2}", w):
             tiers.append(("partial_identifier", "c.search_text ILIKE %s", [f"%{w}%"]))
-    # 5. all terms (English stemming)
+    # 5. all terms (English stemming, Arabic light stems)
     if len(T.content_words(qs)) >= 1 and len(words) > 1:
-        tiers.append(("all_terms", "c.tsv_en @@ plainto_tsquery('english', %s)", [qs]))
+        tiers.append(("all_terms", "c.tsv_en @@ plainto_tsquery('english', %s)", [T.stem_text(qs)]))
     # 6. OCR-tolerant phrase (both sides folded)
     tiers.append(("ocr_tolerant", "c.tsv_fold @@ phraseto_tsquery('simple', %s)", [T.fold(qs)]))
 

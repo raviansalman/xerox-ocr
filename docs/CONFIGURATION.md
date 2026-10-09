@@ -30,7 +30,7 @@ can bypass row-level security.
 | `DOCINTEL_MILVUS_COLLECTION_PREFIX` | `docintel_chunks` | collection name prefix; the model and dimension are appended |
 | `DOCINTEL_MILVUS_CONSISTENCY` | `Bounded` | Milvus read consistency |
 | `DOCINTEL_EMBEDDER_URL` | required unless disabled | the embedding service |
-| `DOCINTEL_EMBEDDING_MODEL` | `all-mpnet-base-v2` | registry key; the service must serve the same model and dimension |
+| `DOCINTEL_EMBEDDING_MODEL` | `all-mpnet-base-v2` | registry key; the service must serve the same model and dimension. `paraphrase-multilingual-mpnet-base-v2` adds meaning search in Arabic and across Arabic and English (see QUERIES.md) |
 | `DOCINTEL_EMBED_BATCH_SIZE`, `DOCINTEL_EMBED_TIMEOUT_SEC` | 32, 120 | |
 | `DOCINTEL_RERANKER_MODEL` | empty (off) | registry key of a cross-encoder served by the embedding service |
 | `DOCINTEL_RERANK_TOP_N` | 40 | results considered by the reranker |
@@ -51,7 +51,7 @@ can bypass row-level security.
 | `DOCINTEL_TASK_TIME_LIMIT_SEC` | 1800 | Celery hard limit per document |
 | `DOCINTEL_JOB_HEARTBEAT_SEC` | 30 | A running job marks itself alive this often; one silent for 4 beats (at least 2 minutes) is requeued |
 | **Processing** | | |
-| `DOCINTEL_OCR_LANGUAGES` | `eng` | Tesseract languages (the language packs must be installed) |
+| `DOCINTEL_OCR_LANGUAGES` | `eng` (`ara+eng` in `deploy/docker-compose.yml`) | Tesseract languages (the language packs must be installed; the image has English and Arabic). `ara+eng` reads Arabic and English pages, with no measured loss on English |
 | `DOCINTEL_OCR_DPI` | 250 | render resolution for scanned pages |
 | `DOCINTEL_OCR_PAGE_TIMEOUT_SEC` | 180 | OCR time limit per page; a page over it fails the document with the reason |
 | `DOCINTEL_OCR_WORKERS` | CPU count | pages OCR'd in parallel per document |

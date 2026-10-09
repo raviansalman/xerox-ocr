@@ -34,7 +34,7 @@
   <main>
     <section id="ask" class="panel active" data-testid="panel-ask">
       <form id="askForm" class="ask" autocomplete="off">
-        <input id="q" name="q" type="search" placeholder="Ask a question or search your documents" data-testid="query-input" required>
+        <input id="q" name="q" type="search" dir="auto" placeholder="Ask a question or search your documents" data-testid="query-input" required>
         <button class="primary" type="submit" data-testid="query-submit">Ask</button>
       </form>
       <div class="examples" id="examples" data-testid="examples"></div>
@@ -75,7 +75,7 @@
 
   <aside id="drawer" class="drawer" hidden data-testid="drawer">
     <div class="drawer-head">
-      <h2 id="dTitle"></h2>
+      <h2 id="dTitle" dir="auto"></h2>
       <button id="dClose" class="ghost" aria-label="Close" data-testid="drawer-close">Close</button>
     </div>
     <div id="dBody" class="drawer-body"></div>

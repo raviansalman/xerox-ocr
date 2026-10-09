@@ -12,6 +12,20 @@ models:
     chunk_chars: 1000
     semantic_floor: 0.30
     languages: [en]
+  # Multilingual (50+ languages incl. Arabic); trained at 128 tokens, so chunks are smaller: 1.25 x 320 chars plus
+  # the title stays inside 128 tokens for Arabic (about 3.6 characters per token) and English (about 4.2).
+  # Floor calibrated on the test corpus plus tests/integration/test_arabic.py: relevant English, Arabic and
+  # cross-language questions score 0.52 to 0.76, unrelated ones at most 0.42, so 0.46 sits in the gap.
+  paraphrase-multilingual-mpnet-base-v2:
+    name: sentence-transformers/paraphrase-multilingual-mpnet-base-v2
+    revision: 4328cf26390c98c5e3c738b4460a05b95f4911f5
+    sha256: b5722100700c48b74c9c199c5f39ff9493c94d1497f719e791d4bc3861d7714a
+    dimension: 768
+    normalize: true
+    max_tokens: 128
+    chunk_chars: 320
+    semantic_floor: 0.46
+    languages: [ar, en]
   test-hash-768:
     name: tests/support/fake_embedder
     revision: "1"

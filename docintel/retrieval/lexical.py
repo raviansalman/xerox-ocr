@@ -27,7 +27,7 @@ _YEAR = re.compile(r"(?:19|20)\d{2}")
 @dataclass
 class QueryTerms:
     words: list[str]          # exact lexemes in order ('simple' configuration)
-    stems: list[str]          # English stems, stop words removed
+    stems: list[str]          # English stems and Arabic light stems, stop words removed
     folded: list[str]         # OCR-folded lexemes in order
 
 
@@ -38,9 +38,10 @@ def analyze(rc: RetrievalContext, text: str) -> QueryTerms:
     row = rc.conn.execute(
         "SELECT (SELECT array_agg(lexeme ORDER BY pos) FROM (SELECT lexeme, unnest(positions) AS pos "
         "        FROM unnest(to_tsvector('simple', %(s)s))) a) AS words, "
-        "       tsvector_to_array(to_tsvector('english', %(s)s)) AS stems, "
+        "       tsvector_to_array(to_tsvector('english', %(st)s)) AS stems, "      # as chunks.tsv_en is built
         "       (SELECT array_agg(lexeme ORDER BY pos) FROM (SELECT lexeme, unnest(positions) AS pos "
-        "        FROM unnest(to_tsvector('simple', %(f)s))) b) AS folded", {"s": st, "f": folded}).fetchone()
+        "        FROM unnest(to_tsvector('simple', %(f)s))) b) AS folded",
+        {"s": st, "st": T.stem_text(text), "f": folded}).fetchone()
     return QueryTerms(list(row["words"] or []), list(row["stems"] or []), list(row["folded"] or []))
 
 
@@ -122,7 +123,9 @@ class LexicalRetriever:
         p = Postings(rc.conn, rc.auth.tenant_id)
         out: list[Candidate] = []
         cap = budget.max_candidates * 25
-        if len(q.words) > 1 and q.stems:                             # every content word, any inflection
+        # every content word, any inflection; a single Arabic word too, since Arabic attaches articles, prepositions
+        # and plural endings to the word ("طابعة" should find "الطابعات")
+        if q.stems and (len(q.words) > 1 or T.is_arabic_word(q.words[0])):
             terms = [f"s:{s}" for s in q.stems]
             hits = p.all_of(terms, _scope(scope), cap)
             out += _candidates(hits, None, self.name, "all_terms", p.bm25(hits, terms), tuple(q.stems))

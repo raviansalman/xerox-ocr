@@ -36,3 +36,5 @@ api_keys.json
 !deploy/models/
 deploy/models/*
 !deploy/models/README.md
+deploy/tessdata/*
+!deploy/tessdata/README.md

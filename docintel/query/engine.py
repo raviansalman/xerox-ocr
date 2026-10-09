@@ -162,7 +162,8 @@ class QueryEngineV2(QueryEngine):
         if not words:
             return []
         rows = rc.conn.execute("SELECT w, ts_lexize('english_stem', w) AS s FROM unnest(%s::text[]) AS w", (words,)).fetchall()
-        stems = {r["w"]: (r["s"] or [r["w"]])[0] for r in rows}
+        stems = {r["w"]: T.arabic_stem(r["w"]) if T.arabic_stem(r["w"]) != r["w"] else (r["s"] or [r["w"]])[0]
+                 for r in rows}                       # Arabic words are indexed under their light stems
         df = Postings(rc.conn, rc.auth.tenant_id).df([*(f"w:{w}" for w in words), *(f"f:{w}" for w in words),
                                                       *(f"s:{stems[w]}" for w in words)])
         return [w for w in words if not (df[f"w:{w}"] or df[f"f:{w}"] or df[f"s:{stems[w]}"])]

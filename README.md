@@ -8,6 +8,10 @@ when the evidence is not good enough the engine says so instead of guessing.
 * **Formats:** PDF (native, scanned and mixed), images (PNG, JPEG, TIFF including multi-page, GIF, BMP), Word
   (DOCX, DOC, ODT), spreadsheets (XLSX, XLS, ODS, CSV), presentations (PPTX, PPT, ODP), e-mail (EML, with
   attachments), HTML, RTF, plain text. See [docs/INGESTION.md](docs/INGESTION.md).
+* **Arabic:** Arabic and mixed Arabic/English scans are OCRed (`ara+eng`, sideways pages turned upright, garbled
+  PDF text layers re-read by OCR) and searched with Arabic-aware normalization and light stemming; with the
+  multilingual embedding model, meaning search also works in Arabic and across Arabic and English. See
+  [docs/QUERIES.md](docs/QUERIES.md#arabic).
 * **Canonical model:** pages, typed blocks (headings, paragraphs, tables, key-value lines) with bounding boxes and
   OCR confidence, tables with cells, retrieval units, fields, entities, clauses and relations, each with its page
   and exact character span; a version per processing run with the parser, OCR engine, embedding model and domain

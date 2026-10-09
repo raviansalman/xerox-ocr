@@ -25,7 +25,7 @@ Not supported, rejected at upload with a reason: Outlook `.msg` (save as `.eml`)
 other binary formats (audio, video, CAD). Password-protected PDFs and encrypted or corrupted Office files are
 accepted at upload and end `failed` with the reason. Not provided:
 handwriting recognition, OCR for scripts other than the configured Tesseract languages (`DOCINTEL_OCR_LANGUAGES`,
-default `eng`), chart or image understanding beyond OCR of their text.
+`eng` by default, `ara+eng` in the Docker deployment), chart or image understanding beyond OCR of their text.
 
 ## What processing produces
 
@@ -78,6 +78,18 @@ Tesseract is behind an interface (`docintel.processing.ocr.get_ocr`) that return
 confidence and paragraphs as blocks; its name, version and languages are recorded in each document version, so changing the
 OCR engine or its languages marks OCRed documents stale (as does a new PDF parser version for PDFs). Common OCR confusions (`rn`/`m`, `l`/`I`, `0`/`O` inside words) are folded in a
 separate index form, so `Califomia` finds `California` and the reverse.
+
+A page read with low confidence is checked with Tesseract's orientation detection; a sideways or upside-down scan is
+turned upright and read again (word boxes are reported on the page as scanned, so they still line up with the page
+image). Pages with too little text for the detector are tried at 90 and 270 degrees.
+
+**Arabic.** With `ara` in `DOCINTEL_OCR_LANGUAGES` the image uses Tesseract's best Arabic model (`tessdata_best`
+4.1.0, checksum pinned in `deploy/Dockerfile`). Measured on Arabic scans with ground truth: 5.8% character errors with
+`ara+eng` (93% with `eng` alone), English scans unchanged at 0%. Arabic lines come out in reading order, and Latin
+identifiers inside Arabic text (`WDP-2024/017`) are read correctly. PDF text layers whose Arabic was extracted garbled
+(letters split apart, or lam-alef ligatures in the wrong order, both common in real files) are detected and those pages
+are read by OCR instead (`docintel.text.garbled_arabic`). Known limits: numbers printed in Arabic-Indic digits
+(`٢٥٠٬٠٠٠`) are often misread by Tesseract, and a few Arabic words can come out as Latin letters.
 
 ## Bulk ingestion and reprocessing
 

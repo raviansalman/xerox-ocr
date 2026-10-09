@@ -26,6 +26,7 @@ from pathlib import Path
 
 from PIL import Image
 
+from docintel import text as T
 from docintel.config import get_settings
 from docintel.models import Block, Page, ParsedDocument, Table, text_blocks
 from docintel.processing import safety
@@ -196,7 +197,9 @@ def parse_pdf(path: Path) -> ParsedDocument:
             area = max(1.0, page.rect.width * page.rect.height)
             img_cover = sum(max(0.0, (x1 - x0) * (y1 - y0)) / area for x0, y0, x1, y1 in
                             (info["bbox"] for info in page.get_image_info()))
-            needs_ocr = len(txt) < 30 or (img_cover > 0.5 and len(txt) < 400)
+            # an Arabic text layer that was extracted garbled is replaced by OCR (when Arabic OCR is configured)
+            garbled = "ara" in s.ocr_languages.split("+") and T.garbled_arabic(txt)
+            needs_ocr = len(txt) < 30 or (img_cover > 0.5 and len(txt) < 400) or garbled
             native = None
             if txt:
                 blocks, tables = _pdf_native_blocks(page)
@@ -207,7 +210,7 @@ def parse_pdf(path: Path) -> ParsedDocument:
                 def render(page=page, zoom=zoom):
                     pix = page.get_pixmap(matrix=fitz.Matrix(zoom, zoom), colorspace=fitz.csGRAY)
                     return Image.frombytes("L", (pix.width, pix.height), pix.samples)
-                ocr_jobs.append((i, render, native))
+                ocr_jobs.append((i, render, None if garbled else native))
             else:
                 pages[i] = native or Page.from_blocks(i, "native", [], width=page.rect.width, height=page.rect.height)
         if ocr_jobs:
