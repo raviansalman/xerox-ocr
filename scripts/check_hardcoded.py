@@ -34,6 +34,7 @@ NAMES = ("Dockerfile", ".dockerignore", ".gitignore")
 ALLOWED_URLS = (
     "http://www.w3.org/2000/svg",                   # SVG namespace in the favicon
     "https://download.pytorch.org/whl/cpu",         # public CPU wheel index for the embedder image
+    "https://get.docker.com",                       # Docker's official install script (deploy/setup.sh)
 )
 RULES = {
     "ip-address": re.compile(r"(?<![\w.])(?:\d{1,3}\.){3}\d{1,3}(?![\w.])"),

@@ -76,7 +76,7 @@ for _ in $(seq 1 120); do
   if curl -fs "http://localhost:$PORT/health/ready" >/dev/null 2>&1; then
     IP=$(hostname -I 2>/dev/null | awk '{print $1}')
     echo
-    echo "Ready: open http://${IP:-localhost}:$PORT in a browser."
+    echo "Ready: open http://${IP:-localhost}:$PORT in a browser."   # hardcoded-ok(url): this server's own address
     if [ -n "$KEY" ]; then
       echo "Your admin login key (also saved in $KEY_NOTE):"
       echo "$KEY"
