@@ -35,13 +35,17 @@ Built with FastAPI, PostgreSQL 16, Milvus 2.6 (HNSW), Tesseract, LibreOffice and
 ## Quick start (Docker)
 
 ```bash
-cp deploy/.env.example deploy/.env       # set POSTGRES_PASSWORD, DOCINTEL_DB_PASSWORD, DOCINTEL_REDIS_PASSWORD, DOCINTEL_METRICS_TOKEN
-docintel keygen                          # or: python -m docintel.security generate; prints a key and its sha256
-cp deploy/api_keys.example.json deploy/api_keys.json   # put the sha256, a tenant name and roles in it
-docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
+git clone -b main https://github.com/raviansalman/xerox-ocr.git && cd xerox-ocr
+./deploy/setup.sh invozone
 ```
 
-Open http://localhost:8000, enter the API key, drop files on the Documents tab and ask questions on the Ask tab.
+`deploy/setup.sh` installs Docker if it is missing, creates `deploy/.env` with random passwords for PostgreSQL,
+Redis and metrics, creates an admin login key for the tenant you name (printed once and saved in
+`deploy/ADMIN_LOGIN_KEY.txt`), builds and starts the stack and waits until it is ready. Running it again keeps the
+existing passwords and keys and restarts with the current code. To set things up by hand instead, see
+[docs/OPERATIONS.md](docs/OPERATIONS.md).
+
+Open http://localhost:8000, enter the login key, drop files on the Documents tab and ask questions on the Ask tab.
 Building, sizing, scaling, backups and upgrades are in [docs/OPERATIONS.md](docs/OPERATIONS.md); every setting is
 in [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
 
