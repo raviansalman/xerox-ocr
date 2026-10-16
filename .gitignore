@@ -23,7 +23,7 @@ models/
 .env.*
 *.env
 !.env.example
-deploy/api_keys.json
+deploy/api_keys.json*
 deploy/ADMIN_LOGIN_KEY.txt
 api_keys.json
 

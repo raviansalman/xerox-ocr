@@ -5,8 +5,8 @@
 #   ./deploy/setup.sh                 tenant "default"
 #   ./deploy/setup.sh invozone        tenant "invozone"
 #
-# Safe to run again: existing passwords and keys are kept (PostgreSQL keeps the password it was first started with),
-# and the stack is rebuilt and restarted with the current code.
+# Safe to run again: passwords and keys that are already set are kept (PostgreSQL keeps the password it was first
+# started with), missing or empty ones are filled in, and the stack is rebuilt and restarted with the current code.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -37,26 +37,35 @@ fi
 
 random() { openssl rand -hex "$1" 2>/dev/null || head -c "$1" /dev/urandom | od -An -tx1 | tr -d ' \n'; }
 
-# 2. Passwords (.env), created once
+# 2. Passwords (.env): created once; in an existing file, only missing or empty values are filled in. A value that
+#    is already set is never changed (PostgreSQL keeps the password it was first started with).
 if [ ! -f "$ENV_FILE" ]; then
   cp deploy/.env.example "$ENV_FILE"
-  for name in POSTGRES_PASSWORD DOCINTEL_DB_PASSWORD DOCINTEL_REDIS_PASSWORD DOCINTEL_METRICS_TOKEN; do
-    sed -i.bak "s|^$name=.*|$name=$(random 24)|" "$ENV_FILE"
-  done
-  rm -f "$ENV_FILE.bak"
-  chmod 600 "$ENV_FILE"
-  echo "Created $ENV_FILE with random passwords."
-else
-  echo "Keeping the existing $ENV_FILE."
+  echo "Created $ENV_FILE."
 fi
+for name in POSTGRES_PASSWORD DOCINTEL_DB_PASSWORD DOCINTEL_REDIS_PASSWORD DOCINTEL_METRICS_TOKEN; do
+  if grep -Eq "^$name=.+" "$ENV_FILE"; then
+    continue
+  elif grep -Eq "^$name=" "$ENV_FILE"; then
+    sed -i.bak "s|^$name=.*|$name=$(random 24)|" "$ENV_FILE" && rm -f "$ENV_FILE.bak"
+  else
+    printf '\n%s=%s\n' "$name" "$(random 24)" >> "$ENV_FILE"
+  fi
+  echo "Set $name in $ENV_FILE."
+done
+chmod 600 "$ENV_FILE"
 
-# 3. Admin login key, created once
+# 3. Admin login key: created when there is no key file, or when the existing one holds no usable key (for example
+#    a copy of the example file with placeholders, which is set aside as api_keys.json.bak).
+if [ -f "$KEYS_FILE" ] && ! grep -Eq '"key_sha256" *: *"[0-9a-f]{64}"' "$KEYS_FILE"; then
+  mv "$KEYS_FILE" "$KEYS_FILE.bak"
+  echo "$KEYS_FILE had no usable key; moved it to $KEYS_FILE.bak."
+fi
 if [ ! -f "$KEYS_FILE" ]; then
   KEY=$(random 32)
   HASH=$(printf '%s' "$KEY" | sha256sum | cut -d' ' -f1)
   printf '[\n  {"name": "%s-admin", "tenant": "%s", "roles": ["admin"], "key_sha256": "%s"}\n]\n' \
     "$TENANT" "$TENANT" "$HASH" > "$KEYS_FILE"
-  chmod 644 "$KEYS_FILE"                 # hashes only; the app's non-root user must be able to read it
   printf 'Admin login key for tenant %s:\n%s\n' "$TENANT" "$KEY" > "$KEY_NOTE"
   chmod 600 "$KEY_NOTE"
   echo "Created an admin login key for tenant '$TENANT'."
@@ -64,6 +73,7 @@ else
   KEY=""
   echo "Keeping the existing $KEYS_FILE."
 fi
+chmod 644 "$KEYS_FILE"                   # hashes only; the app's non-root user must be able to read it
 
 # 4. Build and start
 echo "Building and starting (the first time takes several minutes)..."
