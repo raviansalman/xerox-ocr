@@ -49,7 +49,7 @@ docintel = "docintel.cli:main"
 include = ["docintel*"]
 
 [tool.setuptools.package-data]
-docintel = ["model_registry.yaml", "packs/*/*.yaml", "storage/migrations/*.sql", "api/static/*"]
+docintel = ["model_registry.yaml", "packs/*/*.yaml", "storage/migrations/*.sql", "api/static/*", "api/static/assets/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -24,6 +24,7 @@ RUN --mount=type=secret,id=ca,required=false \
     if [ -s /run/secrets/ca ]; then cat /etc/ssl/certs/ca-certificates.crt /run/secrets/ca > /tmp/ca.pem; \
         export PIP_CERT=/tmp/ca.pem; fi \
     && pip install ".[answer]" && rm -f /tmp/ca.pem \
+    && python -c 'from importlib.metadata import files; packaged = {str(p): p for p in files("docintel")}; required = ("docintel/api/static/index.html", "docintel/api/static/assets/app.js", "docintel/api/static/assets/index.css"); assert all(p in packaged and packaged[p].locate().stat().st_size > 0 for p in required), "frontend assets missing from installed package"' \
     && mkdir -p /data/objects && chown -R docintel:docintel /data     # a new named volume copies this ownership
 
 USER docintel

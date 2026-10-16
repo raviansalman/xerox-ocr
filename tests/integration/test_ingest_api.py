@@ -219,7 +219,11 @@ def test_ui_is_served_with_a_strict_csp(client, engine_env):
     r = client.get("/")
     assert r.status_code == 200 and "Document Intelligence" in r.text
     assert "script-src 'self'" in r.headers["content-security-policy"]
-    assert client.get("/static/app.js").status_code == 200
+    for path, media_type in (("/static/assets/app.js", "javascript"),
+                             ("/static/assets/index.css", "text/css")):
+        asset = client.get(path)
+        assert asset.status_code == 200
+        assert media_type in asset.headers["content-type"]
 
 
 def test_readiness_reports_an_unwritable_object_store(client, monkeypatch):
