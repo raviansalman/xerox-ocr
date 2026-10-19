@@ -1,5 +1,5 @@
 # Single-host deployment: API, Celery workers, embedder, PostgreSQL, Milvus and Redis.
-#   cp deploy/.env.example deploy/.env    # fill in passwords and API keys
+#   cp deploy/.env.example deploy/.env    # fill in passwords
 #   docker compose -f deploy/docker-compose.yml --env-file deploy/.env up -d --build
 # Scale processing with: docker compose ... up -d --scale worker=4
 # Only the API port is published; the data stores are reachable on the internal network only.
@@ -19,7 +19,8 @@ x-app: &app
     DOCINTEL_EMBEDDING_MODEL: ${DOCINTEL_EMBEDDING_MODEL:-all-mpnet-base-v2}
     DOCINTEL_TASK_MODE: celery
     DOCINTEL_REDIS_URL: redis://:${DOCINTEL_REDIS_PASSWORD:?set DOCINTEL_REDIS_PASSWORD}@redis:6379/0
-    DOCINTEL_API_KEYS_FILE: /run/secrets/api_keys
+    DOCINTEL_AUTH_MODE: none
+    DOCINTEL_DEV_TENANT: ${DOCINTEL_DEV_TENANT:-default}
     DOCINTEL_CORS_ORIGINS: ${DOCINTEL_CORS_ORIGINS:-}
     DOCINTEL_URL_FETCH_ENABLED: ${DOCINTEL_URL_FETCH_ENABLED:-false}
     DOCINTEL_METRICS_TOKEN: ${DOCINTEL_METRICS_TOKEN:?set DOCINTEL_METRICS_TOKEN (bearer token for /metrics)}
@@ -27,7 +28,6 @@ x-app: &app
     DOCINTEL_ANSWER_PROVIDER: ${DOCINTEL_ANSWER_PROVIDER:-extractive}
     DOCINTEL_ANSWER_API_KEY: ${DOCINTEL_ANSWER_API_KEY:-}
   volumes: [objects:/data]
-  secrets: [api_keys]
   depends_on:
     postgres: { condition: service_healthy }
     milvus: { condition: service_healthy }
@@ -112,9 +112,5 @@ services:
       retries: 10
     environment:
       DOCINTEL_REDIS_PASSWORD: ${DOCINTEL_REDIS_PASSWORD}
-
-secrets:
-  api_keys:
-    file: ${DOCINTEL_API_KEYS_PATH:-./api_keys.json}
 
 volumes: { objects: {}, pgdata: {}, milvus: {}, redis: {} }

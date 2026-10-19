@@ -105,7 +105,7 @@ class Settings(BaseSettings):
     default_packs: str = "business,legal,finance"
 
     # Auth
-    auth_mode: Literal["keys", "dev"] = "keys"
+    auth_mode: Literal["none", "keys", "dev"] = "none"
     api_keys: str = ""                  # inline JSON (see docintel.security)
     api_keys_file: Path | None = None
     dev_tenant: str = "default"
@@ -159,10 +159,6 @@ class Settings(BaseSettings):
                 except ImportError:
                     problems.append("DOCINTEL_ANSWER_PROVIDER=anthropic needs the 'answer' extra (pip install docintel[answer])")
         if self.is_production:
-            if self.auth_mode != "keys":
-                problems.append(f"DOCINTEL_AUTH_MODE=dev is not allowed in {self.environment}")
-            if role == "api" and not (self.api_keys or self.api_keys_file):
-                problems.append("API keys (DOCINTEL_API_KEYS_FILE or DOCINTEL_API_KEYS) are required")
             if self.vector_backend == "memory":
                 problems.append("DOCINTEL_VECTOR_BACKEND=memory is for tests only")
             if self.task_mode == "inline":

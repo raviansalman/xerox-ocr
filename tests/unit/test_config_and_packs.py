@@ -33,16 +33,16 @@ def test_production_profile_rejects_unsafe_settings():
     with pytest.raises(ConfigError) as e:
         settings(environment="production", auth_mode="dev", vector_backend="memory", task_mode="inline").validate_for_startup()
     msg = str(e.value)
-    assert "AUTH_MODE=dev" in msg and "memory" in msg and "inline" in msg and "API keys" in msg
-    settings(environment="production", api_keys_file="/run/secrets/keys", metrics_token="scrape").validate_for_startup()
-    settings(environment="production", api_keys_file="/run/secrets/keys", metrics_enabled=False).validate_for_startup()
+    assert "memory" in msg and "inline" in msg
+    settings(environment="production", auth_mode="keys", api_keys_file="/run/secrets/keys", metrics_token="scrape").validate_for_startup()
+    settings(environment="production", auth_mode="keys", api_keys_file="/run/secrets/keys", metrics_enabled=False).validate_for_startup()
     with pytest.raises(ConfigError, match="METRICS_TOKEN"):
-        settings(environment="production", api_keys_file="/run/secrets/keys").validate_for_startup()
+        settings(environment="production", auth_mode="keys", api_keys_file="/run/secrets/keys").validate_for_startup()
     with pytest.raises(ConfigError, match="REDIS_URL"):
         settings(task_mode="celery").validate_for_startup("worker")
     for field, var in (("embedding_model", "EMBEDDING_MODEL"), ("reranker_model", "RERANKER_MODEL")):
         with pytest.raises(ConfigError, match=f"{var}=test-.* tests only"):
-            settings(environment="production", api_keys_file="/run/secrets/keys", metrics_token="scrape",
+            settings(environment="production", auth_mode="keys", api_keys_file="/run/secrets/keys", metrics_token="scrape",
                      **{field: "test-hash-768" if field == "embedding_model" else "test-overlap"}).validate_for_startup()
     # the Anthropic SDK resolves credentials itself (key setting, ANTHROPIC_API_KEY or a profile); only the SDK is required
     settings(answer_provider="anthropic").validate_for_startup()
@@ -144,3 +144,9 @@ def test_every_setting_is_documented():
     doc = (Path(__file__).resolve().parents[2] / "docs" / "CONFIGURATION.md").read_text()
     missing = [f"DOCINTEL_{n.upper()}" for n in Settings.model_fields if f"DOCINTEL_{n.upper()}" not in doc]
     assert missing == []
+
+
+@pytest.mark.parametrize("mode", ["none", "keys", "dev"])
+def test_production_shared_workspace_needs_no_api_keys(mode):
+    s = settings(environment="production", auth_mode=mode, metrics_enabled=False)
+    s.validate_for_startup()

@@ -24,6 +24,7 @@ def _fresh_settings():
 
 @pytest.fixture
 def keys(monkeypatch):
+    monkeypatch.setenv("DOCINTEL_AUTH_MODE", "keys")
     monkeypatch.setenv("DOCINTEL_API_KEYS", json.dumps([_key("r", "acme", ["reader"]), _key("svc", None, ["service"])]))
     config.reset_settings()
     S.reset_auth_cache()
@@ -32,59 +33,18 @@ def keys(monkeypatch):
     S.reset_auth_cache()
 
 
-def test_tenant_comes_from_the_key(keys):
-    ctx = S.authenticate({"x-api-key": "r"})
-    assert ctx.tenant_id == "acme" and ctx.has("reader") and not ctx.has("uploader")
-    assert S.authenticate({"authorization": "Bearer r"}).tenant_id == "acme"
-
-
-def test_tenant_key_cannot_switch_tenant(keys):
-    with pytest.raises(S.AuthError) as e:
-        S.authenticate({"x-api-key": "r", "x-tenant-id": "globex"})
-    assert e.value.status_code == 403
-
-
-def test_service_key_requires_valid_tenant_header(keys):
-    with pytest.raises(S.AuthError) as e:
-        S.authenticate({"x-api-key": "svc"})
-    assert e.value.status_code == 400
-    with pytest.raises(S.AuthError):
-        S.authenticate({"x-api-key": "svc", "x-tenant-id": "bad tenant'"})
-    assert S.authenticate({"x-api-key": "svc", "x-tenant-id": "globex"}).tenant_id == "globex"
-
-
-def test_missing_and_wrong_keys(keys):
-    for h, code in (({}, 401), ({"x-api-key": "nope"}, 401)):
-        with pytest.raises(S.AuthError) as e:
-            S.authenticate(h)
-        assert e.value.status_code == code
-
-
-def test_role_requirement(keys):
-    with pytest.raises(S.AuthError) as e:
-        S.authenticate({"x-api-key": "r"}).require("uploader")
-    assert e.value.status_code == 403
-
-
-def test_no_keys_configured_fails_closed(monkeypatch):
-    monkeypatch.setenv("DOCINTEL_API_KEYS", "")
+@pytest.mark.parametrize("mode", ["none", "keys", "dev"])
+@pytest.mark.parametrize("environment", ["development", "production"])
+def test_workspace_access_ignores_legacy_authentication(monkeypatch, mode, environment):
+    monkeypatch.setenv("DOCINTEL_AUTH_MODE", mode)
+    monkeypatch.setenv("DOCINTEL_ENVIRONMENT", environment)
+    monkeypatch.setenv("DOCINTEL_DEV_TENANT", "shared")
+    monkeypatch.setenv("DOCINTEL_API_KEYS", "invalid legacy configuration")
     config.reset_settings()
-    S.reset_auth_cache()
-    with pytest.raises(S.AuthError) as e:
-        S.authenticate({"x-api-key": "anything"})
-    assert e.value.status_code == 503
-
-
-def test_dev_mode_is_refused_in_production(monkeypatch):
-    monkeypatch.setenv("DOCINTEL_AUTH_MODE", "dev")
-    monkeypatch.setenv("DOCINTEL_ENVIRONMENT", "production")
-    config.reset_settings()
-    with pytest.raises(S.AuthError):
-        S.authenticate({})
-    monkeypatch.setenv("DOCINTEL_ENVIRONMENT", "development")
-    config.reset_settings()
-    assert S.authenticate({}).tenant_id == "default"
-    config.reset_settings()
+    for headers in ({}, {"x-api-key": "stale", "x-tenant-id": "other"}):
+        ctx = S.authenticate(headers)
+        assert ctx.tenant_id == "shared"
+        assert ctx.has("reader") and ctx.has("uploader") and ctx.has("admin")
 
 
 @pytest.mark.parametrize("entry", [
@@ -189,3 +149,15 @@ def test_memory_vector_store_is_tenant_scoped_and_validates_input():
         store.search("acme", np.array([1, 0, 0], dtype=np.float32), 10, document_ids=["1 or 1=1"])
     store.delete_document("acme", doc_a)
     assert store.search("acme", np.array([1, 0, 0], dtype=np.float32), 10) == []
+
+
+@pytest.mark.parametrize("environment", ["development", "production"])
+def test_keyless_workspace_ignores_credentials_and_tenant_headers(monkeypatch, environment):
+    monkeypatch.setenv("DOCINTEL_AUTH_MODE", "none")
+    monkeypatch.setenv("DOCINTEL_ENVIRONMENT", environment)
+    monkeypatch.setenv("DOCINTEL_DEV_TENANT", "shared")
+    config.reset_settings()
+    for headers in ({}, {"x-api-key": "stale", "x-tenant-id": "other"}):
+        ctx = S.authenticate(headers)
+        assert ctx.tenant_id == "shared"
+        assert ctx.has("reader") and ctx.has("uploader") and ctx.has("admin")

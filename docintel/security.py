@@ -1,24 +1,7 @@
-"""API-key authentication, roles and tenant resolution.
+"""Shared workspace access and legacy key-generation utilities.
 
-The tenant is always taken from the authenticated key, never from the request body. Keys are configured as
-SHA-256 hashes, either inline (``DOCINTEL_API_KEYS``) or in a mounted file (``DOCINTEL_API_KEYS_FILE``)::
-
-    [
-      {"name": "<tenant>-reader", "key_sha256": "<hex>", "tenant": "<tenant>", "roles": ["reader"]},
-      {"name": "<tenant>-ingest", "key_sha256": "<hex>", "tenant": "<tenant>", "roles": ["uploader"]},
-      {"name": "backend",     "key_sha256": "<hex>", "roles": ["service"]},
-      {"name": "<tenant>-admin", "key_sha256": "<hex>", "tenant": "<tenant>", "roles": ["admin"]}
-    ]
-
-Roles: reader (query, read documents) < uploader (+ ingest, delete, reprocess) < admin (+ tenant administration).
-``service`` keys are not bound to a tenant and must name the tenant in the ``X-Tenant-Id`` header (for a trusted
-backend that serves several tenants).
-
-``DOCINTEL_AUTH_MODE=dev`` disables authentication and acts as an admin of ``DOCINTEL_DEV_TENANT``. It is refused
-when ``DOCINTEL_ENVIRONMENT=production``.
-
-    python -m docintel.security generate        # new key and its hash
-    python -m docintel.security hash <key>
+Document routes always use DOCINTEL_DEV_TENANT without credentials. Legacy
+DOCINTEL_AUTH_MODE and API-key settings do not enable authentication.
 """
 from __future__ import annotations
 
@@ -135,36 +118,12 @@ def _presented_key(headers: Mapping[str, str]) -> str | None:
 
 
 def authenticate(headers: Mapping[str, str]) -> AuthContext:
-    s = get_settings()
-    if s.auth_mode == "dev":
-        if s.is_production:
-            raise AuthError(503, "Development authentication mode is not allowed in production")
-        return AuthContext(principal="dev", tenant_id=s.dev_tenant, roles=ROLE_IMPLIES["admin"])
-    try:
-        index = key_index()
-    except Exception:
-        logger.exception("API key configuration could not be loaded")
-        raise AuthError(503, "Authentication configuration is invalid; see server logs") from None
-    if not index:
-        raise AuthError(503, "Authentication is not configured on this server")
-    raw = _presented_key(headers)
-    if not raw:
-        raise AuthError(401, "Missing API key (X-API-Key header or Authorization: Bearer)")
-    key = index.get(hash_key(raw))
-    if key is None:
-        raise AuthError(401, "Invalid API key")
-    requested = (headers.get("x-tenant-id") or "").strip()
-    if key.tenant:
-        if requested and requested != key.tenant:
-            raise AuthError(403, "X-Tenant-Id does not match the tenant of this API key")
-        tenant = key.tenant
-    else:
-        if not requested:
-            raise AuthError(400, "Service keys must send the X-Tenant-Id header")
-        if not is_valid_tenant_id(requested):
-            raise AuthError(400, "X-Tenant-Id contains unsupported characters")
-        tenant = requested
-    return AuthContext(principal=key.name, tenant_id=tenant, roles=key.roles)
+    """Use the shared workspace regardless of legacy authentication settings or headers."""
+    return AuthContext(
+        principal="workspace",
+        tenant_id=get_settings().dev_tenant,
+        roles=ROLE_IMPLIES["admin"],
+    )
 
 
 def _main(argv: list[str]) -> int:

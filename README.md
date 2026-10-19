@@ -1,3 +1,8 @@
+> The web app uses a shared workspace without API keys. Search, uploads and document
+> management are available to everyone who can reach the server. `DOCINTEL_DEV_TENANT`
+> selects the workspace (default: `default`). Legacy authentication settings are ignored.
+> Restart or redeploy the backend after updating. Local backend services are still required.
+
 # Document Intelligence Engine
 
 Ingest documents in the common office and scan formats, keep every document whole and addressable, and ask
@@ -45,13 +50,13 @@ Redis and metrics, creates an admin login key for the tenant you name (printed o
 existing passwords and keys and restarts with the current code. To set things up by hand instead, see
 [docs/OPERATIONS.md](docs/OPERATIONS.md).
 
-Open http://localhost:8000, enter the login key, drop files on the Documents tab and ask questions on the Ask tab.
+Open http://localhost:8000, drop files on the Documents tab and ask questions on the Ask tab.
 Building, sizing, scaling, backups and upgrades are in [docs/OPERATIONS.md](docs/OPERATIONS.md); every setting is
 in [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
 
 ## API
 
-All endpoints take `X-API-Key`. Interactive documentation is served at `/api/docs`. Details in
+Document endpoints require no API key. Interactive documentation is served at `/api/docs`. Details in
 [docs/API.md](docs/API.md).
 
 | Method and path | Role | Purpose |
