@@ -33,8 +33,8 @@ function App() {
     }
     const res = await fetch(path, init);
     if (res.status === 401) {
-      setConnected(false);
-      throw new Error("Your API key was not accepted.");
+      if (apiKey) setConnected(false);
+      throw new Error(apiKey ? "Your API key was not accepted." : "Connect with an API key to access workspace data.");
     }
     if (!res.ok) {
       let detail = res.statusText;
@@ -54,8 +54,13 @@ function App() {
     if (candidate !== undefined) setApiKey(candidate);
     const key = candidate ?? apiKey;
     if (!key) {
-      setConnected(false);
-      return false;
+      setTenant("Guest");
+      setExamples(EXAMPLES);
+      setTypes([]);
+      setKeyError("");
+      setConnected(true);
+      try { localStorage.removeItem(KEY_STORE); } catch { /* storage unavailable */ }
+      return true;
     }
     try {
       const headers = { "X-API-Key": key };

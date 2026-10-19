@@ -21,10 +21,10 @@ export function ConnectScreen({ keyInput, setKeyInput, showKey, setShowKey, keyE
           <div className="secure-tile"><ShieldCheck size={25} /></div>
           <p className="eyebrow">Secure Connection</p>
           <h2>Connect to your workspace</h2>
-          <p className="muted">Enter your organization's API key to securely access your document intelligence workspace.</p>
+          <p className="muted">Connect to your workspace. You can optionally enter your organization's API key to access its documents.</p>
           <form className="connect-form" onSubmit={submitKey}>
             <div className="field-row">
-              <label htmlFor="keyInput">API key</label>
+              <label htmlFor="keyInput">API key (optional)</label>
               <button type="button" className="link subtle">Where do I find this?</button>
             </div>
             <div className={`key-entry ${keyError ? "invalid" : ""}`}>
@@ -36,18 +36,17 @@ export function ConnectScreen({ keyInput, setKeyInput, showKey, setShowKey, keyE
                 placeholder="iz_live_................"
                 value={keyInput}
                 onChange={(e) => setKeyInput(e.target.value)}
-                required
               />
               <button type="button" className="eye-button" aria-label="Show API key" onClick={() => setShowKey((v) => !v)}>
                 <Eye size={19} />
               </button>
             </div>
             {keyError && <p className="error">{keyError}</p>}
-            <p className="hint">Your key is unique to your tenant and controls workspace access.</p>
+            <p className="hint">Leave this blank to continue, or enter a key to access your tenant's data.</p>
             <button type="submit" className="primary connect-submit">Connect to Workspace <ArrowRight size={21} /></button>
           </form>
-          <div className="privacy-note"><Lock size={18} /><div><strong>Private by design</strong><small>Your key is encrypted and never stored in this browser.</small></div></div>
-          <p className="prototype-tip">Prototype tip: use any 10+ character key. Try "invalid" or "expired" to preview those states.</p>
+          <div className="privacy-note"><Lock size={18} /><div><strong>Private by design</strong><small>If provided, your key is saved in this browser until you disconnect.</small></div></div>
+          <p className="prototype-tip">Workspace data may require a valid API key, depending on your server's access settings.</p>
         </section>
       </main>
       <footer className="connect-footer"><span>Copyright 2025 InvoZone</span><nav><a>Privacy</a><a>Security</a><a>Support</a></nav></footer>
