@@ -1,7 +1,7 @@
 import { KeyRound } from "lucide-react";
 import { Brand, Dot } from "./Common.jsx";
 
-export function Header({ tab, setTab, tenant, healthReady, onDisconnect }) {
+export function Header({ tab, setTab, tenant, healthReady, onConnection }) {
   return (
     <header className="topbar">
       <Brand />
@@ -12,7 +12,7 @@ export function Header({ tab, setTab, tenant, healthReady, onDisconnect }) {
       <div className="session">
         <span className="status-copy"><Dot status={healthReady ? "ok" : "bad"} />{healthReady ? "All services ready" : "Services need attention"}</span>
         <span className="tenant">{tenant}</span>
-        <button className="icon-button" title="Disconnect" aria-label="Disconnect" onClick={onDisconnect}><KeyRound size={20} /></button>
+        <button className="icon-button" title="Workspace connection" aria-label="Workspace connection" onClick={onConnection}><KeyRound size={20} /></button>
       </div>
     </header>
   );

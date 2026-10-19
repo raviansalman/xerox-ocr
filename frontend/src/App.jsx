@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { EXAMPLES, KEY_STORE } from "./constants.js";
 import { AskPage } from "./components/AskPage.jsx";
-import { ConnectScreen } from "./components/ConnectScreen.jsx";
+import { WorkspaceConnection } from "./components/WorkspaceConnection.jsx";
 import { DocumentDrawer } from "./components/DocumentDrawer.jsx";
 import { DocumentsPage } from "./components/DocumentsPage.jsx";
 import { Header } from "./components/Header.jsx";
@@ -12,11 +12,10 @@ function App() {
   const [apiKey, setApiKey] = useState(() => {
     try { return localStorage.getItem(KEY_STORE) || ""; } catch { return ""; }
   });
-  const [keyInput, setKeyInput] = useState(apiKey);
-  const [showKey, setShowKey] = useState(false);
   const [keyError, setKeyError] = useState("");
+  const [connectionOpen, setConnectionOpen] = useState(false);
   const [connected, setConnected] = useState(false);
-  const [tenant, setTenant] = useState("");
+  const [tenant, setTenant] = useState("Guest");
   const [healthReady, setHealthReady] = useState(false);
   const [tab, setTab] = useState("ask");
   const [examples, setExamples] = useState(EXAMPLES);
@@ -34,7 +33,8 @@ function App() {
     const res = await fetch(path, init);
     if (res.status === 401) {
       setConnected(false);
-      throw new Error("Your API key was not accepted.");
+      setTenant("Guest");
+      throw new Error(apiKey ? "Your API key was not accepted. Update it using the key button in the header." : "Connect with an API key using the key button in the header to access workspace data.");
     }
     if (!res.ok) {
       let detail = res.statusText;
@@ -50,11 +50,8 @@ function App() {
   }, [apiKey]);
 
   const connect = useCallback(async (candidate) => {
-    const previous = apiKey;
-    if (candidate !== undefined) setApiKey(candidate);
     const key = candidate ?? apiKey;
     if (!key) {
-      setConnected(false);
       return false;
     }
     try {
@@ -69,13 +66,12 @@ function App() {
       setTenant(`${me.tenant_id} - ${me.roles?.includes("uploader") ? "editor" : "reader"}`);
       setExamples(settings.examples?.length ? settings.examples.map((e) => [e.label, e.q]) : EXAMPLES);
       setTypes(tax.types || []);
+      setApiKey(key);
       setConnected(true);
       setKeyError("");
       try { localStorage.setItem(KEY_STORE, key); } catch { /* storage unavailable */ }
       return true;
     } catch (err) {
-      if (candidate !== undefined) setApiKey(previous);
-      setConnected(false);
       setKeyError(err.message || "That key was not accepted.");
       return false;
     }
@@ -99,48 +95,43 @@ function App() {
     if (apiKey) connect();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const submitKey = async (ev) => {
-    ev.preventDefault();
-    await connect(keyInput.trim());
+  const disconnect = () => {
+    try { localStorage.removeItem(KEY_STORE); } catch { /* storage unavailable */ }
+    setApiKey("");
+    setConnected(false);
+    setTenant("Guest");
+    setExamples(EXAMPLES);
+    setTypes([]);
+    setDrawerDocId(null);
+    setKeyError("");
+    setConnectionOpen(false);
   };
 
   return (
     <>
-      {!connected && (
-        <ConnectScreen
-          keyInput={keyInput}
-          setKeyInput={setKeyInput}
-          showKey={showKey}
-          setShowKey={setShowKey}
-          keyError={keyError}
-          submitKey={submitKey}
-        />
-      )}
-
-      {connected && (
-        <>
-          <Header
-            tab={tab}
-            setTab={setTab}
-            tenant={tenant}
-            healthReady={healthReady}
-            onDisconnect={() => {
-              try { localStorage.removeItem(KEY_STORE); } catch { /* ignore */ }
-              setApiKey("");
-              setKeyInput("");
-              setConnected(false);
-            }}
-          />
-          <main className="app-main">
-            {tab === "ask" ? (
-              <AskPage api={request} examples={examples} openDoc={setDrawerDocId} />
-            ) : (
-              <DocumentsPage api={request} types={types} openDoc={setDrawerDocId} />
-            )}
-          </main>
-          {drawerDocId ? <DocumentDrawer api={request} id={drawerDocId} onClose={() => setDrawerDocId(null)} /> : null}
-        </>
-      )}
+      <Header
+        tab={tab}
+        setTab={setTab}
+        tenant={tenant}
+        healthReady={healthReady}
+        onConnection={() => { setKeyError(""); setConnectionOpen(true); }}
+      />
+      <main className="app-main" key={`${apiKey}:${connected}`}>
+        {tab === "ask" ? (
+          <AskPage api={request} examples={examples} openDoc={setDrawerDocId} />
+        ) : (
+          <DocumentsPage api={request} types={types} openDoc={setDrawerDocId} />
+        )}
+      </main>
+      {drawerDocId ? <DocumentDrawer api={request} id={drawerDocId} onClose={() => setDrawerDocId(null)} /> : null}
+      {connectionOpen && <WorkspaceConnection
+        apiKey={apiKey}
+        connected={connected}
+        error={keyError}
+        onConnect={connect}
+        onDisconnect={disconnect}
+        onClose={() => setConnectionOpen(false)}
+      />}
     </>
   );
 }

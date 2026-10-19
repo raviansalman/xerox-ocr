@@ -27,6 +27,7 @@ export function DocumentsPage({ api, types, openDoc }) {
   const [docType, setDocType] = useState("");
   const [uploadStatus, setUploadStatus] = useState("");
   const [errorState, setErrorState] = useState(false);
+  const [loadError, setLoadError] = useState("");
   const [urlVisible, setUrlVisible] = useState(true);
   const fileInput = useRef(null);
   const limit = 25;
@@ -45,9 +46,16 @@ export function DocumentsPage({ api, types, openDoc }) {
     if (filter.trim()) params.set("q", filter.trim());
     if (status) params.set("status", status);
     if (docType) params.set("doc_type", docType);
-    const out = await api(`/api/v1/documents?${params}`);
-    setDocs(out.documents || []);
-    setTotal(out.total || 0);
+    try {
+      const out = await api(`/api/v1/documents?${params}`);
+      setDocs(out.documents || []);
+      setTotal(out.total || 0);
+      setLoadError("");
+    } catch (err) {
+      setDocs([]);
+      setTotal(0);
+      setLoadError(err.message);
+    }
   }, [api, docType, filter, offset, status]);
 
   useEffect(() => {
@@ -181,6 +189,7 @@ export function DocumentsPage({ api, types, openDoc }) {
         {uploadStatus && <div className={`upload-status ${errorState ? "error-state" : ""}`}>{uploadStatus}{errorState ? <X size={14} /> : null}</div>}
       </div>
 
+      {loadError && <p className="error surface-message" role="alert">{loadError}</p>}
       <section className="docs-shell">
         <div className="toolbar">
           <div className="filter-wrap"><Search size={17} /><input value={filter} onChange={(e) => { setOffset(0); setFilter(e.target.value); }} type="search" placeholder="Filter by file name" /></div>
