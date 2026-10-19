@@ -1,6 +1,6 @@
 """HTTP API and web UI.
 
-All data routes require an API key; the tenant always comes from the key (``docintel.security``). Handlers are
+All data routes use the shared workspace without API keys (``docintel.security``). Handlers are
 synchronous functions, so FastAPI runs them in its thread pool and slow work never blocks the event loop.
 """
 from __future__ import annotations

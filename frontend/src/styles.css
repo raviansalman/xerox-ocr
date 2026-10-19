@@ -427,6 +427,37 @@ kbd {
   display: grid;
   gap: 10px;
 }
+.connection-dialog {
+  width: min(460px, calc(100% - 32px));
+  max-height: calc(100% - 32px);
+  margin: auto;
+  padding: 24px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: white;
+  color: var(--text-strong);
+}
+.connection-dialog::backdrop {
+  background: rgba(31, 63, 41, 0.25);
+}
+.connection-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.connection-heading h2 {
+  margin: 0;
+  font-size: 20px;
+}
+.connection-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 14px;
+}
 .field-row {
   display: flex;
   justify-content: space-between;

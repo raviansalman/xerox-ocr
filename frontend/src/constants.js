@@ -1,5 +1,3 @@
-export const KEY_STORE = "docintel.apiKey";
-
 export const EXAMPLES = [
   ["Find an exact phrase", "Find the phrase \"ninety days written notice\""],
   ["Review renewal terms", "What are the renewal terms across our active contracts?"],
